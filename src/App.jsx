@@ -24,21 +24,35 @@ function loadInitialState() {
   if (typeof window === 'undefined') return createDefaultState()
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      const players = Array.isArray(parsed.players) ? parsed.players : defaultPlayers
-      const rounds = Array.isArray(parsed.rounds) && parsed.rounds.length > 0 ? parsed.rounds : createDefaultState().rounds
-      const maxId = Math.max(...rounds.map((r) => r.id), 0)
-      return {
-        players,
-        rounds,
-        nextRoundId: parsed.nextRoundId ? parsed.nextRoundId : maxId + 1,
-      }
+    if (!raw) return createDefaultState()
+
+    const parsed = JSON.parse(raw)
+    const players = Array.isArray(parsed.players) && parsed.players.length >= MIN_PLAYERS ? parsed.players.slice(0, MAX_PLAYERS) : defaultPlayers
+
+    let rounds = Array.isArray(parsed.rounds) && parsed.rounds.length > 0 ? parsed.rounds : createDefaultState().rounds
+
+    rounds = rounds.map((r, idx) => {
+      const id = typeof r.id === 'number' ? r.id : idx + 1
+      const scores = Array.isArray(r.scores) ? r.scores.slice(0, players.length) : []
+      const padded = [...scores, ...Array(players.length - scores.length).fill(0)]
+      return { id, scores: padded }
+    })
+
+    if (rounds.length === 0) {
+      rounds = createDefaultState().rounds
+    }
+
+    const maxId = Math.max(...rounds.map((r) => r.id), 0)
+
+    return {
+      players,
+      rounds,
+      nextRoundId: parsed.nextRoundId ? parsed.nextRoundId : maxId + 1,
     }
   } catch (err) {
     console.warn('Failed to load state, using default', err)
+    return createDefaultState()
   }
-  return createDefaultState()
 }
 
 function clampInt(value) {
