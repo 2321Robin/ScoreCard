@@ -222,6 +222,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-surface text-slate-100">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-20 focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-slate-900"
+      >
+        跳转到主要内容
+      </a>
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-panel/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div className="flex flex-col gap-1">
@@ -230,27 +236,27 @@ function App() {
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <button
-              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500"
+              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={clearAll}
             >
               清空（需确认）
             </button>
             <button
-              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 disabled:opacity-50"
+              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={undo}
               disabled={historyRef.current.past.length === 0}
             >
               撤销
             </button>
             <button
-              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 disabled:opacity-50"
+              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={redo}
               disabled={historyRef.current.future.length === 0}
             >
               重做
             </button>
             <button
-              className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95"
+              className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={exportCsv}
             >
               导出 CSV
@@ -259,7 +265,7 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
+      <main id="main-content" className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
         <section className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -267,7 +273,7 @@ function App() {
               <p className="text-sm text-muted">默认 4 人，最多 8 人；可重命名，至少保留 2 人。</p>
             </div>
             <button
-              className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:border-slate-500 disabled:opacity-50"
+              className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:border-slate-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
               onClick={addPlayer}
               disabled={state.players.length >= MAX_PLAYERS}
             >
@@ -284,7 +290,7 @@ function App() {
                   onChange={(e) => renamePlayer(idx, e.target.value)}
                 />
                 <button
-                  className="text-xs text-muted hover:text-slate-100 disabled:opacity-50"
+                  className="text-xs text-muted hover:text-slate-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                   onClick={() => removePlayer(idx)}
                   disabled={state.players.length <= MIN_PLAYERS}
                   title="删除玩家"
@@ -303,25 +309,27 @@ function App() {
               <p className="text-sm text-muted">每行一局，分值和必须为 0；可自动平衡、复制上一行。</p>
             </div>
             <button
-              className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-slate-900 hover:brightness-95"
+              className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-slate-900 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
               onClick={addRound}
             >
               新增一局
             </button>
           </div>
 
-          <div className="overflow-auto rounded-lg border border-slate-800">
+          <div className="overflow-auto rounded-lg border border-slate-800" role="table" aria-label="对局记录">
             <div className="min-w-[720px]">
-              <div className="flex items-center bg-slate-900 px-3 py-2 text-xs uppercase tracking-wide text-muted">
-                <div className="w-14 flex-shrink-0">局号</div>
-                <div className="flex flex-1 items-center gap-3">
-                  {state.players.map((name, idx) => (
-                    <div key={name} className="min-w-[160px] flex-shrink-0">
+              <div className="flex items-center bg-slate-900 px-3 py-2 text-xs uppercase tracking-wide text-muted" role="row">
+                <div className="w-14 flex-shrink-0" role="columnheader">局号</div>
+                <div className="flex flex-1 items-center gap-3" role="rowheader">
+                  {state.players.map((name) => (
+                    <div key={name} className="min-w-[160px] flex-shrink-0" role="columnheader">
                       {name}
                     </div>
                   ))}
                 </div>
-                <div className="w-40 flex-shrink-0 text-right">操作</div>
+                <div className="w-40 flex-shrink-0 text-right" role="columnheader">
+                  操作
+                </div>
               </div>
 
               {state.rounds.map((round, rowIndex) => {
@@ -331,6 +339,8 @@ function App() {
                   <div
                     key={round.id}
                     className={`border-t border-slate-800 px-3 py-3 text-sm ${invalid ? 'bg-red-950/20 border-red-700' : 'bg-panel/60'}`}
+                    role="row"
+                    aria-label={`第 ${rowIndex + 1} 局，${invalid ? '未平衡' : '已平衡'}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-14 flex-shrink-0 pt-1 text-muted">#{roundIndex + 1}</div>
@@ -338,34 +348,38 @@ function App() {
                         {state.players.map((_, playerIndex) => {
                           const value = clampInt(round.scores[playerIndex])
                           return (
-                            <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                            <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
                               <div className="flex items-center gap-2">
                                 <input
                                   type="number"
                                   inputMode="numeric"
                                   aria-label={`第 ${roundIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
+                                  aria-invalid={invalid}
                                   className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
                                   value={value}
                                   onChange={(e) => updateScore(round.id, playerIndex, clampInt(e.target.value))}
                                 />
-                                <div className="flex flex-wrap gap-1 text-xs">
+                                <div className="flex flex-wrap gap-1 text-xs" aria-label="快速输入">
                                   {quickSetValues.map((v) => (
                                     <button
                                       key={v}
-                                      className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent"
+                                      className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                                      aria-label={`设为 ${v}`}
                                       onClick={() => updateScore(round.id, playerIndex, v)}
                                     >
                                       {v}
                                     </button>
                                   ))}
                                   <button
-                                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent"
+                                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                                    aria-label="加 10"
                                     onClick={() => applyDelta(round.id, playerIndex, 10)}
                                   >
                                     +10
                                   </button>
                                   <button
-                                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent"
+                                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                                    aria-label="减 10"
                                     onClick={() => applyDelta(round.id, playerIndex, -10)}
                                   >
                                     -10
@@ -375,8 +389,11 @@ function App() {
                             </div>
                           )
                         })}
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                          <span className={`rounded-full px-2 py-1 ${invalid ? 'bg-red-900/50 text-red-100' : 'bg-slate-800 text-slate-200'}`}>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
+                          <span
+                            className={`rounded-full px-2 py-1 ${invalid ? 'bg-red-900/50 text-red-100' : 'bg-slate-800 text-slate-200'}`}
+                            aria-label={`本局合计 ${sum}`}
+                          >
                             本局合计：{sum}
                           </span>
                           {invalid && <span className="text-red-200">需平衡到 0</span>}
@@ -385,20 +402,23 @@ function App() {
 
                       <div className="w-40 flex-shrink-0 space-y-2 text-right text-xs">
                         <button
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent"
+                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                          aria-label={`自动平衡第 ${rowIndex + 1} 局`}
                           onClick={() => autoBalance(round.id)}
                         >
                           自动平衡
                         </button>
                         <button
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent"
+                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:opacity-50"
+                          aria-label={`复制第 ${rowIndex} 局到当前`}
                           onClick={() => copyPrevious(round.id)}
                           disabled={rowIndex === 0}
                         >
                           复制上一行
                         </button>
                         <button
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-red-500"
+                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                          aria-label={`删除第 ${rowIndex + 1} 局`}
                           onClick={() => deleteRound(round.id)}
                         >
                           删除本局
@@ -420,7 +440,11 @@ function App() {
                 const score = totals[idx]
                 const leading = score === leader && totals.some((t) => t !== leader)
                 return (
-                  <div key={name} className="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3">
+                  <div
+                    key={name}
+                    className="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3"
+                    aria-label={`${name} 总分 ${score}`}
+                  >
                     <div className="flex items-center justify-between text-sm text-muted">
                       <span>{name}</span>
                       {leading && <span className="text-accent">领先</span>}
@@ -443,8 +467,9 @@ function App() {
       </main>
 
       <button
-        className="fixed bottom-6 right-6 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg shadow-accent/40 hover:brightness-95"
+        className="fixed bottom-6 right-6 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg shadow-accent/40 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         onClick={addRound}
+        aria-label="新增一局"
       >
         + 新增一局
       </button>
