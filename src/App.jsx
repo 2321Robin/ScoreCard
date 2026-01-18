@@ -46,6 +46,14 @@ function clampInt(value) {
   return Number.isFinite(n) ? n : 0
 }
 
+const csvEscape = (value) => `"${String(value).replace(/"/g, '""')}"`
+
+const formatTimestamp = () => {
+  const d = new Date()
+  const pad = (n) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+}
+
 function App() {
   const [state, setState] = useState(loadInitialState)
   const historyRef = useRef({ past: [], future: [] })
@@ -188,6 +196,30 @@ function App() {
 
   const quickSetValues = [-10, -5, -1, 0, 1, 5, 10]
 
+  const exportCsv = () => {
+    const rows = []
+    rows.push(['Generated At', new Date().toISOString()])
+    rows.push(['Players', ...state.players])
+    rows.push(['Round', ...state.players, 'Sum'])
+
+    state.rounds.forEach((round, idx) => {
+      const scores = round.scores.map((s) => clampInt(s))
+      const sum = scores.reduce((acc, v) => acc + v, 0)
+      rows.push([idx + 1, ...scores, sum])
+    })
+
+    rows.push(['Total', ...totals])
+
+    const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `scores-${formatTimestamp()}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="min-h-screen bg-surface text-slate-100">
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-panel/80 backdrop-blur-sm">
@@ -217,8 +249,11 @@ function App() {
             >
               重做
             </button>
-            <button className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95">
-              导出 CSV（待实现）
+            <button
+              className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95"
+              onClick={exportCsv}
+            >
+              导出 CSV
             </button>
           </div>
         </div>
