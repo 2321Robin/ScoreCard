@@ -4,11 +4,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        surface: '#0f172a',
-        panel: '#111827',
-        accent: '#38bdf8',
-        danger: '#ef4444',
-        muted: '#94a3b8',
+        surface: '#f7f6f1',
+        panel: '#ffffff',
+        accent: '#7fb37a',
+        danger: '#e25b5b',
+        muted: '#6f7664',
       },
       fontFamily: {
         display: ['"Segoe UI"', 'Inter', 'system-ui', 'sans-serif'],
