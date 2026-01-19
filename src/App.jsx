@@ -431,21 +431,21 @@ function App() {
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {state.players.map((name, idx) => (
               <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
-                <div className="flex items-center justify-between gap-2 text-sm text-muted">
+                <div className="flex flex-col gap-2 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
                   <span>{name}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
                       id={`new-score-${idx}`}
                       aria-label={`新增一局，玩家 ${name}`}
                       type="text"
                       inputMode="numeric"
-                      className="w-24 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                      className="w-full min-w-0 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none sm:w-24"
                       value={newRoundScores[idx] ?? ''}
                       onChange={(e) => updateNewRoundScore(idx, e.target.value)}
                     />
                     <select
                       aria-label={`从下拉选择分值，玩家 ${name}`}
-                      className="w-24 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                      className="w-full min-w-0 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none sm:w-24"
                       value=""
                       onChange={(e) => updateNewRoundScore(idx, e.target.value)}
                     >
@@ -484,7 +484,7 @@ function App() {
                     </div>
                   ))}
                 </div>
-                <div className="w-40 flex-shrink-0 text-right" role="columnheader">
+                <div className="w-40 flex-shrink-0 text-center" role="columnheader">
                   操作
                 </div>
               </div>
