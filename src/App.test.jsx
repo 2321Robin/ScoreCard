@@ -15,7 +15,8 @@ describe('App', () => {
     expect(screen.getByText('打牌积分表单')).toBeInTheDocument()
     expect(screen.getByLabelText('玩家名称 1')).toHaveValue('玩家 A')
     expect(screen.getByLabelText('玩家名称 2')).toHaveValue('玩家 B')
-    expect(screen.getAllByRole('button', { name: /新增一局/ })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: '添加本局' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '自动平衡' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '导出 CSV' })).toBeInTheDocument()
   })
 

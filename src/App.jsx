@@ -6,7 +6,10 @@ const MIN_PLAYERS = 2
 const MAX_HISTORY = 50
 
 const defaultPlayers = ['玩家 A', '玩家 B', '玩家 C', '玩家 D']
-const scoreOptions = Array.from({ length: 41 }, (_, i) => i - 20)
+const clampInt = (value) => {
+  const n = Number.parseInt(value, 10)
+  return Number.isFinite(n) ? n : 0
+}
 
 function createDefaultState() {
   return {
@@ -55,10 +58,12 @@ function loadInitialState() {
     return createDefaultState()
   }
 }
-
-function clampInt(value) {
-  const n = Number.parseInt(value, 10)
-  return Number.isFinite(n) ? n : 0
+const ensureLength = (arr, target, fill = 0) => {
+  const next = arr.slice(0, target)
+  if (next.length < target) {
+    next.push(...Array(target - next.length).fill(fill))
+  }
+  return next
 }
 
 const csvEscape = (value) => `"${String(value).replace(/"/g, '""')}"`
@@ -71,11 +76,41 @@ const formatTimestamp = () => {
 
 function App() {
   const [state, setState] = useState(loadInitialState)
+  const [scoreRange, setScoreRange] = useState({ min: -10, max: 10 })
+  const [rangeDraft, setRangeDraft] = useState({ min: '-10', max: '10' })
+  const [newRoundScores, setNewRoundScores] = useState([])
+  const [editingRoundId, setEditingRoundId] = useState(null)
+  const [editScores, setEditScores] = useState([])
   const historyRef = useRef({ past: [], future: [] })
+
+  const scoreOptions = useMemo(() => {
+    const options = []
+    for (let i = scoreRange.min; i <= scoreRange.max; i += 1) {
+      options.push(i)
+    }
+    return options
+  }, [scoreRange])
+
+  const applyRangeDraft = () => {
+    let min = clampInt(rangeDraft.min)
+    let max = clampInt(rangeDraft.max)
+    if (min > max) {
+      ;[min, max] = [max, min]
+    }
+    setScoreRange({ min, max })
+    setRangeDraft({ min: String(min), max: String(max) })
+  }
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
+
+  useEffect(() => {
+    setNewRoundScores((prev) => ensureLength(prev, state.players.length, ''))
+    if (editingRoundId !== null) {
+      setEditScores((prev) => ensureLength(prev, state.players.length, ''))
+    }
+  }, [state.players.length, editingRoundId])
 
   const updateState = (producer) => {
     setState((current) => {
@@ -134,11 +169,12 @@ function App() {
     })
   }
 
-  const addRound = () => {
+  const addRoundWithScores = (scores = []) => {
     updateState((prev) => {
+      const padded = ensureLength(scores, prev.players.length, '').map(clampInt)
       const round = {
         id: prev.nextRoundId,
-        scores: Array(prev.players.length).fill(0),
+        scores: padded,
       }
       return {
         ...prev,
@@ -148,7 +184,29 @@ function App() {
     })
   }
 
+  const updateNewRoundScore = (playerIndex, value) => {
+    setNewRoundScores((prev) => prev.map((s, i) => (i === playerIndex ? value : s)))
+  }
+
+  const autoBalanceNewRound = () => {
+    setNewRoundScores((prev) => {
+      if (prev.length === 0) return prev
+      const sumExcludingLast = prev.slice(0, -1).reduce((acc, v) => acc + clampInt(v), 0)
+      const next = [...prev]
+      next[next.length - 1] = String(-sumExcludingLast)
+      return next
+    })
+  }
+
+  const submitNewRound = () => {
+    addRoundWithScores(newRoundScores)
+    setNewRoundScores(Array(state.players.length).fill(''))
+  }
+
   const deleteRound = (id) => {
+    if (editingRoundId === id) {
+      cancelEdit()
+    }
     updateState((prev) => {
       const rounds = prev.rounds.filter((r) => r.id !== id)
       if (rounds.length === 0) {
@@ -168,26 +226,38 @@ function App() {
     })
   }
 
-  const updateScore = (roundId, playerIndex, value) => {
-    updateState((prev) => {
-      const rounds = prev.rounds.map((r) =>
-        r.id === roundId ? { ...r, scores: r.scores.map((s, i) => (i === playerIndex ? value : s)) } : r,
-      )
-      return { ...prev, rounds }
+  const startEdit = (round) => {
+    setEditingRoundId(round.id)
+    setEditScores(ensureLength(round.scores.map((s) => String(clampInt(s))), state.players.length, ''))
+  }
+
+  const cancelEdit = () => {
+    setEditingRoundId(null)
+    setEditScores([])
+  }
+
+  const updateEditScore = (playerIndex, value) => {
+    setEditScores((prev) => prev.map((s, i) => (i === playerIndex ? value : s)))
+  }
+
+  const autoBalanceEdit = () => {
+    setEditScores((prev) => {
+      if (prev.length === 0) return prev
+      const sumExcludingLast = prev.slice(0, -1).reduce((acc, v) => acc + clampInt(v), 0)
+      const next = [...prev]
+      next[next.length - 1] = String(-sumExcludingLast)
+      return next
     })
   }
 
-  const autoBalance = (roundId) => {
+  const saveEdit = () => {
+    if (editingRoundId === null) return
+    const normalized = ensureLength(editScores, state.players.length, '').map(clampInt)
     updateState((prev) => {
-      const rounds = prev.rounds.map((r) => {
-        if (r.id !== roundId) return r
-        if (r.scores.length === 0) return r
-        const sumExcludingLast = r.scores.slice(0, -1).reduce((acc, v) => acc + clampInt(v), 0)
-        const scores = r.scores.map((v, idx) => (idx === r.scores.length - 1 ? -sumExcludingLast : clampInt(v)))
-        return { ...r, scores }
-      })
+      const rounds = prev.rounds.map((r) => (r.id === editingRoundId ? { ...r, scores: normalized } : r))
       return { ...prev, rounds }
     })
+    cancelEdit()
   }
 
   const clearAll = () => {
@@ -204,16 +274,16 @@ function App() {
   const exportCsv = () => {
     const rows = []
     rows.push(['Generated At', new Date().toISOString()])
-    rows.push(['Players', ...state.players])
-    rows.push(['Round', ...state.players, 'Sum'])
+    rows.push(['Round', ...state.players, ...state.players.map((p) => `${p} 累计总分`)])
 
+    let cumulative = Array(state.players.length).fill(0)
     state.rounds.forEach((round, idx) => {
       const scores = round.scores.map((s) => clampInt(s))
-      const sum = scores.reduce((acc, v) => acc + v, 0)
-      rows.push([idx + 1, ...scores, sum])
+      cumulative = cumulative.map((acc, i) => acc + scores[i])
+      rows.push([idx + 1, ...scores, ...cumulative])
     })
 
-    rows.push(['Total', ...totals])
+    rows.push(['Total', ...totals, ...totals])
 
     const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\r\n')
     const bom = '\ufeff'
@@ -309,17 +379,96 @@ function App() {
         </section>
 
         <section className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
-          <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">新增一局</h2>
+              <p className="text-sm text-muted">在此填写分值并添加；如需调整已存在的记录，请在下方列表中点击编辑。</p>
+            </div>
+            <div className="flex flex-col gap-2 text-sm sm:items-end">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted">分值范围</span>
+                <input
+                  type="number"
+                  className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                  aria-label="分值下限"
+                  value={rangeDraft.min}
+                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, min: e.target.value }))}
+                />
+                <span className="text-muted">到</span>
+                <input
+                  type="number"
+                  className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                  aria-label="分值上限"
+                  value={rangeDraft.max}
+                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, max: e.target.value }))}
+                />
+                <button
+                  className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-slate-100 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                  onClick={applyRangeDraft}
+                >
+                  更新范围
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={autoBalanceNewRound}
+                >
+                  自动平衡
+                </button>
+                <button
+                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={submitNewRound}
+                >
+                  添加本局
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {state.players.map((name, idx) => (
+              <div key={name} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
+                <div className="flex items-center justify-between gap-2 text-sm text-muted">
+                  <span>{name}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={`new-score-${idx}`}
+                      aria-label={`新增一局，玩家 ${name}`}
+                      type="text"
+                      inputMode="numeric"
+                      className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                      value={newRoundScores[idx] ?? ''}
+                      onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                    />
+                    <select
+                      aria-label={`从下拉选择分值，玩家 ${name}`}
+                      className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                      value=""
+                      onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                    >
+                      <option value="" disabled>
+                        下拉选择
+                      </option>
+                      {scoreOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
+          <div className="mb-3 flex items-center gap-2">
             <div>
               <h2 className="text-lg font-semibold">对局记录</h2>
-              <p className="text-sm text-muted">每行一局，分值和必须为 0；可自动平衡、复制上一行。</p>
+              <p className="text-sm text-muted">仅展示已记录的对局，修改需点击“编辑”。</p>
             </div>
-            <button
-              className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-slate-900 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-              onClick={addRound}
-            >
-              新增一局
-            </button>
           </div>
 
           <div className="overflow-auto rounded-lg border border-slate-800" role="table" aria-label="对局记录">
@@ -339,8 +488,15 @@ function App() {
               </div>
 
               {state.rounds.map((round, rowIndex) => {
-                const sum = round.scores.reduce((acc, v) => acc + clampInt(v), 0)
+                const currentScores = ensureLength(
+                  editingRoundId === round.id ? editScores : round.scores,
+                  state.players.length,
+                  '',
+                )
+                const sum = currentScores.reduce((acc, v) => acc + clampInt(v), 0)
                 const invalid = sum !== 0
+                const isEditing = editingRoundId === round.id
+
                 return (
                   <div
                     key={round.id}
@@ -352,27 +508,47 @@ function App() {
                       <div className="w-14 flex-shrink-0 pt-1 text-muted">#{rowIndex + 1}</div>
                       <div className="flex-1 space-y-3">
                         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                          {state.players.map((_, playerIndex) => {
-                            const value = clampInt(round.scores[playerIndex])
+                          {state.players.map((name, playerIndex) => {
+                            const valueRaw = currentScores[playerIndex] ?? ''
+                            const valueNumber = clampInt(valueRaw)
                             return (
                               <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
-                                <label className="flex items-center gap-2 text-sm text-muted" htmlFor={`score-${round.id}-${playerIndex}`}>
-                                  分值
-                                  <select
-                                    id={`score-${round.id}-${playerIndex}`}
-                                    aria-label={`第 ${rowIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
-                                    aria-invalid={invalid}
-                                    className="w-28 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
-                                    value={value}
-                                    onChange={(e) => updateScore(round.id, playerIndex, clampInt(e.target.value))}
-                                  >
-                                    {scoreOptions.map((opt) => (
-                                      <option key={opt} value={opt}>
-                                        {opt}
+                                {isEditing ? (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
+                                      {`第 ${rowIndex + 1} 局，玩家 ${name} 分值`}
+                                    </label>
+                                    <input
+                                      id={`score-${round.id}-${playerIndex}`}
+                                      aria-label={`第 ${rowIndex + 1} 局，玩家 ${name}`}
+                                      aria-invalid={invalid}
+                                      type="text"
+                                      inputMode="numeric"
+                                      className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                                      value={valueRaw}
+                                      onChange={(e) => updateEditScore(playerIndex, e.target.value)}
+                                    />
+                                    <select
+                                      aria-label={`从下拉选择分值，玩家 ${name}`}
+                                      className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                                      value=""
+                                      onChange={(e) => updateEditScore(playerIndex, e.target.value)}
+                                    >
+                                      <option value="" disabled>
+                                        下拉选择
                                       </option>
-                                    ))}
-                                  </select>
-                                </label>
+                                      {scoreOptions.map((opt) => (
+                                        <option key={opt} value={opt}>
+                                          {opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center text-lg font-semibold text-slate-50" aria-label={`${name} 分值 ${valueNumber}`}>
+                                    {valueNumber}
+                                  </div>
+                                )}
                               </div>
                             )
                           })}
@@ -383,21 +559,48 @@ function App() {
                       </div>
 
                       <div className="w-40 flex-shrink-0 space-y-2 text-right text-xs">
-                        <button
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
-                          aria-label={`自动平衡第 ${rowIndex + 1} 局`}
-                          onClick={() => autoBalance(round.id)}
-                        >
-                          自动平衡
-                        </button>
-                        {/* “复制上一行”已移除按需精简操作区 */}
-                        <button
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                          aria-label={`删除第 ${rowIndex + 1} 局`}
-                          onClick={() => deleteRound(round.id)}
-                        >
-                          删除本局
-                        </button>
+                        {isEditing ? (
+                          <>
+                            <button
+                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                              aria-label={`自动平衡第 ${rowIndex + 1} 局`}
+                              onClick={autoBalanceEdit}
+                            >
+                              自动平衡
+                            </button>
+                            <button
+                              className="w-full rounded-md border border-accent bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                              aria-label={`保存第 ${rowIndex + 1} 局`}
+                              onClick={saveEdit}
+                            >
+                              保存
+                            </button>
+                            <button
+                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                              aria-label={`取消编辑第 ${rowIndex + 1} 局`}
+                              onClick={cancelEdit}
+                            >
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                              aria-label={`编辑第 ${rowIndex + 1} 局`}
+                              onClick={() => startEdit(round)}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                              aria-label={`删除第 ${rowIndex + 1} 局`}
+                              onClick={() => deleteRound(round.id)}
+                            >
+                              删除本局
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -440,14 +643,6 @@ function App() {
           </div>
         </section>
       </main>
-
-      <button
-        className="fixed bottom-6 right-6 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg shadow-accent/40 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-        onClick={addRound}
-        aria-label="新增一局"
-      >
-        + 新增一局
-      </button>
     </div>
   )
 }
