@@ -14,13 +14,8 @@ const clampInt = (value) => {
 function createDefaultState() {
   return {
     players: defaultPlayers,
-    rounds: [
-      {
-        id: 1,
-        scores: Array(defaultPlayers.length).fill(0),
-      },
-    ],
-    nextRoundId: 2,
+    rounds: [],
+    nextRoundId: 1,
   }
 }
 
@@ -33,7 +28,7 @@ function loadInitialState() {
     const parsed = JSON.parse(raw)
     const players = Array.isArray(parsed.players) && parsed.players.length >= MIN_PLAYERS ? parsed.players.slice(0, MAX_PLAYERS) : defaultPlayers
 
-    let rounds = Array.isArray(parsed.rounds) && parsed.rounds.length > 0 ? parsed.rounds : createDefaultState().rounds
+    let rounds = Array.isArray(parsed.rounds) ? parsed.rounds : []
 
     rounds = rounds.map((r, idx) => {
       const id = typeof r.id === 'number' ? r.id : idx + 1
@@ -41,11 +36,6 @@ function loadInitialState() {
       const padded = [...scores, ...Array(players.length - scores.length).fill(0)]
       return { id, scores: padded }
     })
-
-    if (rounds.length === 0) {
-      rounds = createDefaultState().rounds
-    }
-
     const maxId = Math.max(...rounds.map((r) => r.id), 0)
 
     return {
@@ -211,9 +201,6 @@ function App() {
     }
     updateState((prev) => {
       const rounds = prev.rounds.filter((r) => r.id !== id)
-      if (rounds.length === 0) {
-        return { ...createDefaultState(), players: prev.players }
-      }
       return { ...prev, rounds }
     })
   }
@@ -522,7 +509,7 @@ function App() {
                                 role="cell"
                               >
                                 {isEditing ? (
-                                  <div className="flex items-center justify-center gap-2">
+                                  <div className="flex flex-col gap-2 text-sm text-muted">
                                     <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
                                       {`第 ${rowIndex + 1} 局，玩家 ${name} 分值`}
                                     </label>
@@ -532,13 +519,13 @@ function App() {
                                       aria-invalid={invalid}
                                       type="text"
                                       inputMode="numeric"
-                                      className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                      className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                                       value={valueRaw}
                                       onChange={(e) => updateEditScore(playerIndex, e.target.value)}
                                     />
                                     <select
                                       aria-label={`从下拉选择分值，玩家 ${name}`}
-                                      className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                      className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
                                       value=""
                                       onChange={(e) => updateEditScore(playerIndex, e.target.value)}
                                     >

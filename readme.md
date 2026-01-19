@@ -21,6 +21,14 @@
 4) 导出：点击“导出 CSV”，下载含逐局累计的表格文件。
 5) 自定义分值范围：在新增区域设置上下限并“更新范围”，下拉选项随之刷新。
 
+## 手机访问（无备案）
+- Cloudflare Tunnel（免防火墙入站、免备案）：
+	1) 安装：`winget install cloudflare.cloudflared`。
+	2) 本地启动：`npm run dev -- --host 127.0.0.1 --port 5173`。
+	3) 另开终端：`cloudflared tunnel --url http://127.0.0.1:5173`。
+	4) 用输出的 `https://xxxx.trycloudflare.com` 在手机打开（每次重启会换新链接）。
+	5) 如遇 1033/无法访问，重启 cloudflared；如网络对 QUIC 不友好，用 `--protocol h2mux`。
+
 ## 开发与运行
 ```bash
 npm install
