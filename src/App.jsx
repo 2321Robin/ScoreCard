@@ -349,31 +349,33 @@ function App() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-14 flex-shrink-0 pt-1 text-muted">#{rowIndex + 1}</div>
-                      <div className="flex flex-1 flex-col gap-3">
-                        {state.players.map((_, playerIndex) => {
-                          const value = clampInt(round.scores[playerIndex])
-                          return (
-                            <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
-                              <label className="flex items-center gap-2 text-sm text-muted" htmlFor={`score-${round.id}-${playerIndex}`}>
-                                分值
-                                <select
-                                  id={`score-${round.id}-${playerIndex}`}
-                                  aria-label={`第 ${rowIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
-                                  aria-invalid={invalid}
-                                  className="w-28 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
-                                  value={value}
-                                  onChange={(e) => updateScore(round.id, playerIndex, clampInt(e.target.value))}
-                                >
-                                  {scoreOptions.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                      {opt}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
-                          )
-                        })}
+                      <div className="flex-1 space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                          {state.players.map((_, playerIndex) => {
+                            const value = clampInt(round.scores[playerIndex])
+                            return (
+                              <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
+                                <label className="flex items-center gap-2 text-sm text-muted" htmlFor={`score-${round.id}-${playerIndex}`}>
+                                  分值
+                                  <select
+                                    id={`score-${round.id}-${playerIndex}`}
+                                    aria-label={`第 ${rowIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
+                                    aria-invalid={invalid}
+                                    className="w-28 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                                    value={value}
+                                    onChange={(e) => updateScore(round.id, playerIndex, clampInt(e.target.value))}
+                                  >
+                                    {scoreOptions.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              </div>
+                            )
+                          })}
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           <span
                             className={`rounded-full px-2 py-1 ${invalid ? 'bg-red-900/50 text-red-100' : 'bg-slate-800 text-slate-200'}`}
