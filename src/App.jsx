@@ -6,6 +6,7 @@ const MIN_PLAYERS = 2
 const MAX_HISTORY = 50
 
 const defaultPlayers = ['玩家 A', '玩家 B', '玩家 C', '玩家 D']
+const scoreOptions = Array.from({ length: 41 }, (_, i) => i - 20)
 
 function createDefaultState() {
   return {
@@ -176,13 +177,6 @@ function App() {
     })
   }
 
-  const applyDelta = (roundId, playerIndex, delta) => {
-    const round = state.rounds.find((r) => r.id === roundId)
-    if (!round) return
-    const current = clampInt(round.scores[playerIndex])
-    updateScore(roundId, playerIndex, current + delta)
-  }
-
   const autoBalance = (roundId) => {
     updateState((prev) => {
       const rounds = prev.rounds.map((r) => {
@@ -207,9 +201,6 @@ function App() {
   }, [state.players, state.rounds])
 
   const leader = Math.max(...totals)
-
-  const quickSetValues = [-10, -5, -1, 0, 1, 5, 10]
-
   const exportCsv = () => {
     const rows = []
     rows.push(['Generated At', new Date().toISOString()])
@@ -363,43 +354,23 @@ function App() {
                           const value = clampInt(round.scores[playerIndex])
                           return (
                             <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  inputMode="numeric"
+                              <label className="flex items-center gap-2 text-sm text-muted" htmlFor={`score-${round.id}-${playerIndex}`}>
+                                分值
+                                <select
+                                  id={`score-${round.id}-${playerIndex}`}
                                   aria-label={`第 ${rowIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
                                   aria-invalid={invalid}
-                                  className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                                  className="w-28 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
                                   value={value}
                                   onChange={(e) => updateScore(round.id, playerIndex, clampInt(e.target.value))}
-                                />
-                                <div className="flex flex-wrap gap-1 text-xs" aria-label="快速输入">
-                                  {quickSetValues.map((v) => (
-                                    <button
-                                      key={v}
-                                      className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
-                                      aria-label={`设为 ${v}`}
-                                      onClick={() => updateScore(round.id, playerIndex, v)}
-                                    >
-                                      {v}
-                                    </button>
+                                >
+                                  {scoreOptions.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                      {opt}
+                                    </option>
                                   ))}
-                                  <button
-                                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
-                                    aria-label="加 10"
-                                    onClick={() => applyDelta(round.id, playerIndex, 10)}
-                                  >
-                                    +10
-                                  </button>
-                                  <button
-                                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
-                                    aria-label="减 10"
-                                    onClick={() => applyDelta(round.id, playerIndex, -10)}
-                                  >
-                                    -10
-                                  </button>
-                                </div>
-                              </div>
+                                </select>
+                              </label>
                             </div>
                           )
                         })}
@@ -473,7 +444,7 @@ function App() {
             <h2 className="text-lg font-semibold">提示</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted">
               <li>每局必须平衡为 0，使用“自动平衡”快速填补最后一位。</li>
-              <li>快速按钮覆盖 -10~10，额外 ±10 按钮用于更大步进；支持手动输入整数。</li>
+              <li>每格使用下拉选择 -20~20 的分值，保持分值整数输入。</li>
               <li>支持撤销/重做（最多 50 步）；清空前需确认；数据自动保存到本地。</li>
             </ul>
           </div>
