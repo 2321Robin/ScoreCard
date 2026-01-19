@@ -299,42 +299,42 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-slate-100">
+    <div className="min-h-screen bg-surface text-text">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-20 focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-slate-900"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-20 focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-text"
       >
         跳转到主要内容
       </a>
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-panel/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+      <header className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-text">
           <div className="flex flex-col gap-1">
             <p className="text-xs uppercase tracking-[0.2em] text-muted">Score Tracker</p>
             <h1 className="text-xl font-semibold">打牌积分表单</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <button
-              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={clearAll}
             >
               清空（需确认）
             </button>
             <button
-              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={undo}
               disabled={historyRef.current.past.length === 0}
             >
               撤销
             </button>
             <button
-              className="rounded-lg border border-slate-700 bg-panel px-3 py-2 text-slate-100 hover:border-slate-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={redo}
               disabled={historyRef.current.future.length === 0}
             >
               重做
             </button>
             <button
-              className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={exportCsv}
             >
               导出 CSV
@@ -343,15 +343,15 @@ function App() {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
-        <section className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
+      <main id="main-content" className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 text-text">
+        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">玩家</h2>
               <p className="text-sm text-muted">默认 4 人，最多 8 人；可重命名，至少保留 2 人。</p>
             </div>
             <button
-              className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:border-slate-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+              className="rounded-lg border border-line px-3 py-2 text-sm text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
               onClick={addPlayer}
               disabled={state.players.length >= MAX_PLAYERS}
             >
@@ -360,15 +360,15 @@ function App() {
           </div>
           <div className="flex flex-wrap gap-3">
             {state.players.map((player, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+              <div key={idx} className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2">
                 <input
                   aria-label={`玩家名称 ${idx + 1}`}
-                  className="w-28 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm focus:border-accent focus:outline-none"
+                  className="w-28 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                   value={player}
                   onChange={(e) => renamePlayer(idx, e.target.value)}
                 />
                 <button
-                  className="text-xs text-muted hover:text-slate-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  className="text-xs text-muted hover:text-text disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                   onClick={() => removePlayer(idx)}
                   disabled={state.players.length <= MIN_PLAYERS}
                   title="删除玩家"
@@ -380,7 +380,7 @@ function App() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
+        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">新增一局</h2>
@@ -391,7 +391,7 @@ function App() {
                 <span className="text-muted">分值范围</span>
                 <input
                   type="number"
-                  className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                   aria-label="分值下限"
                   value={rangeDraft.min}
                   onChange={(e) => setRangeDraft((prev) => ({ ...prev, min: e.target.value }))}
@@ -399,13 +399,13 @@ function App() {
                 <span className="text-muted">到</span>
                 <input
                   type="number"
-                  className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                   aria-label="分值上限"
                   value={rangeDraft.max}
                   onChange={(e) => setRangeDraft((prev) => ({ ...prev, max: e.target.value }))}
                 />
                 <button
-                  className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-slate-100 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                   onClick={applyRangeDraft}
                 >
                   更新范围
@@ -413,13 +413,13 @@ function App() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                   onClick={autoBalanceNewRound}
                 >
                   自动平衡
                 </button>
                 <button
-                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-slate-900 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                   onClick={submitNewRound}
                 >
                   添加本局
@@ -430,7 +430,7 @@ function App() {
 
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {state.players.map((name, idx) => (
-              <div key={name} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
+              <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
                 <div className="flex items-center justify-between gap-2 text-sm text-muted">
                   <span>{name}</span>
                   <div className="flex items-center gap-2">
@@ -439,13 +439,13 @@ function App() {
                       aria-label={`新增一局，玩家 ${name}`}
                       type="text"
                       inputMode="numeric"
-                      className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                      className="w-24 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                       value={newRoundScores[idx] ?? ''}
                       onChange={(e) => updateNewRoundScore(idx, e.target.value)}
                     />
                     <select
                       aria-label={`从下拉选择分值，玩家 ${name}`}
-                      className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                      className="w-24 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                       value=""
                       onChange={(e) => updateNewRoundScore(idx, e.target.value)}
                     >
@@ -465,7 +465,7 @@ function App() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
+        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
           <div className="mb-3 flex items-center gap-2">
             <div>
               <h2 className="text-lg font-semibold">对局记录</h2>
@@ -473,9 +473,9 @@ function App() {
             </div>
           </div>
 
-          <div className="overflow-auto rounded-lg border border-slate-800" role="table" aria-label="对局记录">
+          <div className="overflow-auto rounded-lg border border-line" role="table" aria-label="对局记录">
             <div className="min-w-[720px]">
-              <div className="flex items-center bg-slate-900 px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" role="row">
+              <div className="flex items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" role="row">
                 <div className="w-14 flex-shrink-0" role="columnheader">局号</div>
                 <div className="grid flex-1 items-center gap-3" style={{ gridTemplateColumns: playerGridTemplate }} role="rowheader">
                   {state.players.map((name) => (
@@ -502,7 +502,7 @@ function App() {
                 return (
                   <div
                     key={round.id}
-                    className={`border-t border-slate-800 px-3 py-3 text-sm ${invalid ? 'bg-red-950/20 border-red-700' : 'bg-panel/60'}`}
+                    className={`border-t border-line px-3 py-3 text-sm ${invalid ? 'bg-red-50 border-red-300' : 'bg-panel'}`}
                     role="row"
                     aria-label={`第 ${rowIndex + 1} 局，${invalid ? '未平衡' : '已平衡'}`}
                   >
@@ -516,7 +516,7 @@ function App() {
                             return (
                               <div
                                 key={playerIndex}
-                                className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-center"
+                                className="rounded-lg border border-line bg-panel p-3 text-center"
                                 role="cell"
                               >
                                 {isEditing ? (
@@ -530,13 +530,13 @@ function App() {
                                       aria-invalid={invalid}
                                       type="text"
                                       inputMode="numeric"
-                                      className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                                      className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                                       value={valueRaw}
                                       onChange={(e) => updateEditScore(playerIndex, e.target.value)}
                                     />
                                     <select
                                       aria-label={`从下拉选择分值，玩家 ${name}`}
-                                      className="w-20 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                                      className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
                                       value=""
                                       onChange={(e) => updateEditScore(playerIndex, e.target.value)}
                                     >
@@ -551,7 +551,7 @@ function App() {
                                     </select>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center justify-center text-lg font-semibold text-slate-50" aria-label={`${name} 分值 ${valueNumber}`}>
+                                  <div className="flex items-center justify-center text-lg font-semibold text-text" aria-label={`${name} 分值 ${valueNumber}`}>
                                     {valueNumber}
                                   </div>
                                 )}
@@ -560,7 +560,7 @@ function App() {
                           })}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
-                          {invalid && <span className="rounded-full bg-red-900/50 px-2 py-1 text-red-100">需平衡到 0</span>}
+                          {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
                         </div>
                       </div>
 
@@ -568,21 +568,21 @@ function App() {
                         {isEditing ? (
                           <>
                             <button
-                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                              className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                               aria-label={`自动平衡第 ${rowIndex + 1} 局`}
                               onClick={autoBalanceEdit}
                             >
                               自动平衡
                             </button>
                             <button
-                              className="w-full rounded-md border border-accent bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                              className="w-full rounded-md border border-accent bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                               aria-label={`保存第 ${rowIndex + 1} 局`}
                               onClick={saveEdit}
                             >
                               保存
                             </button>
                             <button
-                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                              className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                               aria-label={`取消编辑第 ${rowIndex + 1} 局`}
                               onClick={cancelEdit}
                             >
@@ -592,14 +592,14 @@ function App() {
                         ) : (
                           <>
                             <button
-                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                              className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                               aria-label={`编辑第 ${rowIndex + 1} 局`}
                               onClick={() => startEdit(round)}
                             >
                               编辑
                             </button>
                             <button
-                              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                              className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/70"
                               aria-label={`删除第 ${rowIndex + 1} 局`}
                               onClick={() => deleteRound(round.id)}
                             >
@@ -617,7 +617,7 @@ function App() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <div className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
+          <div className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
             <h2 className="text-lg font-semibold">总分</h2>
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {state.players.map((name, idx) => {
@@ -626,7 +626,7 @@ function App() {
                 return (
                   <div
                     key={name}
-                    className="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3"
+                    className="rounded-lg border border-line bg-panel px-3 py-3"
                     aria-label={`${name} 总分 ${score}`}
                   >
                     <div className="flex items-center justify-between text-sm text-muted">
@@ -639,7 +639,7 @@ function App() {
               })}
             </div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-panel/80 p-4 shadow-lg shadow-slate-950/50">
+          <div className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
             <h2 className="text-lg font-semibold">提示</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted">
               <li>每局必须平衡为 0，使用“自动平衡”快速填补最后一位。</li>

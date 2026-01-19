@@ -9,6 +9,8 @@ export default {
         accent: '#7fb37a',
         danger: '#e25b5b',
         muted: '#6f7664',
+        text: '#2f3128',
+        line: '#dcd8cc',
       },
       fontFamily: {
         display: ['"Segoe UI"', 'Inter', 'system-ui', 'sans-serif'],
