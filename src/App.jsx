@@ -357,7 +357,7 @@ function App() {
                     aria-label={`第 ${rowIndex + 1} 局，${invalid ? '未平衡' : '已平衡'}`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-14 flex-shrink-0 pt-1 text-muted">#{roundIndex + 1}</div>
+                      <div className="w-14 flex-shrink-0 pt-1 text-muted">#{rowIndex + 1}</div>
                       <div className="flex flex-1 flex-col gap-3">
                         {state.players.map((_, playerIndex) => {
                           const value = clampInt(round.scores[playerIndex])
@@ -367,7 +367,7 @@ function App() {
                                 <input
                                   type="number"
                                   inputMode="numeric"
-                                  aria-label={`第 ${roundIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
+                                  aria-label={`第 ${rowIndex + 1} 局，玩家 ${state.players[playerIndex]}`}
                                   aria-invalid={invalid}
                                   className="w-24 rounded-md border border-slate-700 bg-panel px-2 py-1 text-sm text-slate-100 focus:border-accent focus:outline-none"
                                   value={value}
