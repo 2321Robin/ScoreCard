@@ -377,13 +377,7 @@ function App() {
                           })}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
-                          <span
-                            className={`rounded-full px-2 py-1 ${invalid ? 'bg-red-900/50 text-red-100' : 'bg-slate-800 text-slate-200'}`}
-                            aria-label={`本局合计 ${sum}`}
-                          >
-                            本局合计：{sum}
-                          </span>
-                          {invalid && <span className="text-red-200">需平衡到 0</span>}
+                          {invalid && <span className="rounded-full bg-red-900/50 px-2 py-1 text-red-100">需平衡到 0</span>}
                         </div>
                       </div>
 
@@ -395,14 +389,7 @@ function App() {
                         >
                           自动平衡
                         </button>
-                        <button
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:opacity-50"
-                          aria-label={`复制第 ${rowIndex} 局到当前`}
-                          onClick={() => copyPrevious(round.id)}
-                          disabled={rowIndex === 0}
-                        >
-                          复制上一行
-                        </button>
+                        {/* “复制上一行”已移除按需精简操作区 */}
                         <button
                           className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 hover:border-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                           aria-label={`删除第 ${rowIndex + 1} 局`}
