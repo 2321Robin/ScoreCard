@@ -431,34 +431,32 @@ function App() {
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {state.players.map((name, idx) => (
               <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
-                <div className="flex flex-col gap-2 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-                  <span>{name}</span>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                      id={`new-score-${idx}`}
-                      aria-label={`新增一局，玩家 ${name}`}
-                      type="text"
-                      inputMode="numeric"
-                      className="w-full min-w-0 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none sm:w-24"
-                      value={newRoundScores[idx] ?? ''}
-                      onChange={(e) => updateNewRoundScore(idx, e.target.value)}
-                    />
-                    <select
-                      aria-label={`从下拉选择分值，玩家 ${name}`}
-                      className="w-full min-w-0 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none sm:w-24"
-                      value=""
-                      onChange={(e) => updateNewRoundScore(idx, e.target.value)}
-                    >
-                      <option value="" disabled>
-                        下拉选择
+                <div className="flex flex-col gap-2 text-sm text-muted">
+                  <span className="font-medium text-text text-center">{name}</span>
+                  <input
+                    id={`new-score-${idx}`}
+                    aria-label={`新增一局，玩家 ${name}`}
+                    type="text"
+                    inputMode="numeric"
+                    className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    value={newRoundScores[idx] ?? ''}
+                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                  />
+                  <select
+                    aria-label={`从下拉选择分值，玩家 ${name}`}
+                    className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
+                    value=""
+                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                  >
+                    <option value="" disabled>
+                      下拉选择
+                    </option>
+                    {scoreOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
                       </option>
-                      {scoreOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}
