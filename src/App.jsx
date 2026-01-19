@@ -270,6 +270,8 @@ function App() {
     return state.players.map((_, idx) => state.rounds.reduce((acc, r) => acc + clampInt(r.scores[idx]), 0))
   }, [state.players, state.rounds])
 
+  const playerGridTemplate = useMemo(() => `repeat(${state.players.length}, minmax(140px, 1fr))`, [state.players.length])
+
   const leader = Math.max(...totals)
   const exportCsv = () => {
     const rows = []
@@ -473,11 +475,11 @@ function App() {
 
           <div className="overflow-auto rounded-lg border border-slate-800" role="table" aria-label="对局记录">
             <div className="min-w-[720px]">
-              <div className="flex items-center bg-slate-900 px-3 py-2 text-xs uppercase tracking-wide text-muted" role="row">
+              <div className="flex items-center bg-slate-900 px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" role="row">
                 <div className="w-14 flex-shrink-0" role="columnheader">局号</div>
-                <div className="flex flex-1 items-center gap-3" role="rowheader">
+                <div className="grid flex-1 items-center gap-3" style={{ gridTemplateColumns: playerGridTemplate }} role="rowheader">
                   {state.players.map((name) => (
-                    <div key={name} className="min-w-[160px] flex-shrink-0" role="columnheader">
+                    <div key={name} className="min-w-[140px] px-3 text-center" role="columnheader">
                       {name}
                     </div>
                   ))}
@@ -507,12 +509,16 @@ function App() {
                     <div className="flex items-start gap-3">
                       <div className="w-14 flex-shrink-0 pt-1 text-muted">#{rowIndex + 1}</div>
                       <div className="flex-1 space-y-3">
-                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                        <div className="grid gap-3" style={{ gridTemplateColumns: playerGridTemplate }}>
                           {state.players.map((name, playerIndex) => {
                             const valueRaw = currentScores[playerIndex] ?? ''
                             const valueNumber = clampInt(valueRaw)
                             return (
-                              <div key={playerIndex} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3" role="cell">
+                              <div
+                                key={playerIndex}
+                                className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-center"
+                                role="cell"
+                              >
                                 {isEditing ? (
                                   <div className="flex items-center justify-center gap-2">
                                     <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
