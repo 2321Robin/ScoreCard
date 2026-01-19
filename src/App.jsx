@@ -191,9 +191,11 @@ function App() {
   const autoBalanceNewRound = () => {
     setNewRoundScores((prev) => {
       if (prev.length === 0) return prev
-      const sumExcludingLast = prev.slice(0, -1).reduce((acc, v) => acc + clampInt(v), 0)
+      const targetIndex = prev.findIndex((v) => v === '' || v === null || v === undefined)
+      const balanceIndex = targetIndex === -1 ? prev.length - 1 : targetIndex
+      const sumExcludingTarget = prev.reduce((acc, v, idx) => (idx === balanceIndex ? acc : acc + clampInt(v)), 0)
       const next = [...prev]
-      next[next.length - 1] = String(-sumExcludingLast)
+      next[balanceIndex] = String(-sumExcludingTarget)
       return next
     })
   }
@@ -243,9 +245,11 @@ function App() {
   const autoBalanceEdit = () => {
     setEditScores((prev) => {
       if (prev.length === 0) return prev
-      const sumExcludingLast = prev.slice(0, -1).reduce((acc, v) => acc + clampInt(v), 0)
+      const targetIndex = prev.findIndex((v) => v === '' || v === null || v === undefined)
+      const balanceIndex = targetIndex === -1 ? prev.length - 1 : targetIndex
+      const sumExcludingTarget = prev.reduce((acc, v, idx) => (idx === balanceIndex ? acc : acc + clampInt(v)), 0)
       const next = [...prev]
-      next[next.length - 1] = String(-sumExcludingLast)
+      next[balanceIndex] = String(-sumExcludingTarget)
       return next
     })
   }
@@ -640,8 +644,8 @@ function App() {
           <div className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
             <h2 className="text-lg font-semibold">提示</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted">
-              <li>每局必须平衡为 0，使用“自动平衡”快速填补最后一位。</li>
-              <li>每格使用下拉选择 -20~20 的分值，保持分值整数输入。</li>
+              <li>先录完负分，留一格空，再点“自动平衡”自动补齐为正，整局合计为 0。</li>
+              <li>分值可直接输入或下拉选择，默认范围 -10~10，可在新增区域自定义。</li>
               <li>支持撤销/重做（最多 50 步）；清空前需确认；数据自动保存到本地。</li>
             </ul>
           </div>
