@@ -372,89 +372,6 @@ function App() {
         </section>
 
         <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
-          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">新增一局</h2>
-              <p className="text-sm text-muted">在此填写分值并添加；如需调整已存在的记录，请在下方列表中点击编辑。</p>
-            </div>
-            <div className="flex flex-col gap-2 text-sm sm:items-end">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted">分值范围</span>
-                <input
-                  type="number"
-                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                  aria-label="分值下限"
-                  value={rangeDraft.min}
-                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, min: e.target.value }))}
-                />
-                <span className="text-muted">到</span>
-                <input
-                  type="number"
-                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                  aria-label="分值上限"
-                  value={rangeDraft.max}
-                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, max: e.target.value }))}
-                />
-                <button
-                  className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                  onClick={applyRangeDraft}
-                >
-                  更新范围
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                  onClick={autoBalanceNewRound}
-                >
-                  自动平衡
-                </button>
-                <button
-                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                  onClick={submitNewRound}
-                >
-                  添加本局
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {state.players.map((name, idx) => (
-              <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
-                <div className="flex flex-col gap-2 text-sm text-muted">
-                  <span className="font-medium text-text text-center">{name}</span>
-                  <input
-                    id={`new-score-${idx}`}
-                    aria-label={`新增一局，玩家 ${name}`}
-                    type="text"
-                    inputMode="numeric"
-                    className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                    value={newRoundScores[idx] ?? ''}
-                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
-                  />
-                  <select
-                    aria-label={`从下拉选择分值，玩家 ${name}`}
-                    className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
-                    value=""
-                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
-                  >
-                    <option value="" disabled>
-                      下拉选择
-                    </option>
-                    {scoreOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
           <div className="mb-3 flex items-center gap-2">
             <div>
               <h2 className="text-lg font-semibold">对局记录</h2>
@@ -635,6 +552,89 @@ function App() {
               <li>分值可直接输入或下拉选择，默认范围 -10~10，可在新增区域自定义。</li>
               <li>支持撤销/重做（最多 50 步）；清空前需确认；数据自动保存到本地。</li>
             </ul>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">新增一局</h2>
+              <p className="text-sm text-muted">在此填写分值并添加；如需调整已存在的记录，请在下方列表中点击编辑。</p>
+            </div>
+            <div className="flex flex-col gap-2 text-sm sm:items-end">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted">分值范围</span>
+                <input
+                  type="number"
+                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                  aria-label="分值下限"
+                  value={rangeDraft.min}
+                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, min: e.target.value }))}
+                />
+                <span className="text-muted">到</span>
+                <input
+                  type="number"
+                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                  aria-label="分值上限"
+                  value={rangeDraft.max}
+                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, max: e.target.value }))}
+                />
+                <button
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  onClick={applyRangeDraft}
+                >
+                  更新范围
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={autoBalanceNewRound}
+                >
+                  自动平衡
+                </button>
+                <button
+                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={submitNewRound}
+                >
+                  添加本局
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {state.players.map((name, idx) => (
+              <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
+                <div className="flex flex-col gap-2 text-sm text-muted">
+                  <span className="font-medium text-text text-center">{name}</span>
+                  <input
+                    id={`new-score-${idx}`}
+                    aria-label={`新增一局，玩家 ${name}`}
+                    type="text"
+                    inputMode="numeric"
+                    className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    value={newRoundScores[idx] ?? ''}
+                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                  />
+                  <select
+                    aria-label={`从下拉选择分值，玩家 ${name}`}
+                    className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
+                    value=""
+                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                  >
+                    <option value="" disabled>
+                      下拉选择
+                    </option>
+                    {scoreOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       </main>
