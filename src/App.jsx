@@ -58,10 +58,71 @@ const ensureLength = (arr, target, fill = 0) => {
 
 const csvEscape = (value) => `"${String(value).replace(/"/g, '""')}"`
 
+const splitCsvLine = (line) => {
+  const out = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+    if (ch === ',' && !inQuotes) {
+      out.push(current)
+      current = ''
+      continue
+    }
+    current += ch
+  }
+  out.push(current)
+  return out
+}
+
 const formatTimestamp = () => {
   const d = new Date()
   const pad = (n) => n.toString().padStart(2, '0')
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+}
+
+const parseImportedCsv = (text) => {
+  const lines = text
+    .replace(/^\ufeff/, '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (lines.length < 2) {
+    throw new Error('文件内容为空或格式不正确')
+  }
+
+  const header = splitCsvLine(lines[1])
+  if (header[0]?.toLowerCase() !== 'round') {
+    throw new Error('缺少 Round 表头')
+  }
+  const playerCount = (header.length - 1) / 2
+  if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
+    throw new Error('玩家数量不合法或超出范围')
+  }
+  const players = header.slice(1, 1 + playerCount)
+
+  const totalRowIdx = lines.findIndex((line) => {
+    const cells = splitCsvLine(line)
+    return cells[0]?.toLowerCase() === 'total'
+  })
+
+  const dataLines = lines.slice(2, totalRowIdx === -1 ? undefined : totalRowIdx)
+  const rounds = dataLines.map((line, idx) => {
+    const cells = splitCsvLine(line)
+    const scores = cells.slice(1, 1 + playerCount).map(clampInt)
+    return { id: idx + 1, scores }
+  })
+
+  return { players, rounds }
 }
 
 function App() {
@@ -71,6 +132,8 @@ function App() {
   const [newRoundScores, setNewRoundScores] = useState([])
   const [editingRoundId, setEditingRoundId] = useState(null)
   const [editScores, setEditScores] = useState([])
+  const [showChart, setShowChart] = useState(true)
+  const fileInputRef = useRef(null)
   const historyRef = useRef({ past: [], future: [] })
 
   const scoreOptions = useMemo(() => {
@@ -263,6 +326,19 @@ function App() {
 
   const playerGridTemplate = useMemo(() => `repeat(${state.players.length}, minmax(140px, 1fr))`, [state.players.length])
 
+  const cumulativeSeries = useMemo(() => {
+    const series = state.players.map(() => [{ round: 0, value: 0 }])
+    const running = Array(state.players.length).fill(0)
+
+    state.rounds.forEach((round, idx) => {
+      round.scores.forEach((s, i) => {
+        running[i] += clampInt(s)
+        series[i].push({ round: idx + 1, value: running[i] })
+      })
+    })
+    return series
+  }, [state.players, state.rounds])
+
   const leader = Math.max(...totals)
   const exportCsv = () => {
     const rows = []
@@ -287,6 +363,28 @@ function App() {
     link.download = `scores-${formatTimestamp()}.csv`
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleImportFile = async (file) => {
+    try {
+      const text = await file.text()
+      const { players, rounds } = parseImportedCsv(text)
+      updateState(() => ({ players, rounds, nextRoundId: rounds.length + 1 }))
+      setEditingRoundId(null)
+      setEditScores([])
+      setNewRoundScores(Array(players.length).fill(''))
+      alert('导入成功')
+    } catch (err) {
+      console.error('导入失败', err)
+      alert(`导入失败：${err.message || '格式不正确'}`)
+    }
+  }
+
+  const triggerImport = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+      fileInputRef.current.click()
+    }
   }
 
   return (
@@ -330,6 +428,22 @@ function App() {
             >
               导出 CSV
             </button>
+            <button
+              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              onClick={triggerImport}
+            >
+              导入 CSV
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleImportFile(file)
+              }}
+            />
           </div>
         </div>
       </header>
@@ -636,6 +750,93 @@ function App() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">分数变化折线图</h2>
+              <p className="text-sm text-muted">展示每位玩家的累计总分随对局的变化，便于对局过长时快速查看走势。</p>
+            </div>
+            <button
+              className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+              onClick={() => setShowChart((v) => !v)}
+              aria-expanded={showChart}
+            >
+              {showChart ? '收起折线图' : '展开折线图'}
+            </button>
+          </div>
+
+          {showChart && (
+            <div className="space-y-3">
+              {state.rounds.length === 0 ? (
+                <p className="text-sm text-muted">暂无对局数据，添加几局后即可查看走势。</p>
+              ) : (
+                <div className="overflow-auto">
+                  {(() => {
+                    const allValues = cumulativeSeries.flatMap((s) => s.map((p) => p.value))
+                    const minValue = Math.min(0, ...allValues)
+                    const maxValue = Math.max(0, ...allValues)
+                    const safeMin = minValue === maxValue ? minValue - 10 : minValue
+                    const safeMax = minValue === maxValue ? maxValue + 10 : maxValue
+                    const padding = 20
+                    const height = 220
+                    const roundCount = Math.max(...cumulativeSeries.map((s) => s.length), 1)
+                    const width = Math.max(320, (roundCount - 1) * 80 + 80)
+                    const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
+
+                    const getX = (round) => {
+                      if (roundCount <= 1) return padding
+                      const ratio = round / (roundCount - 1)
+                      return padding + ratio * (width - padding * 2)
+                    }
+
+                    const getY = (value) => {
+                      const span = safeMax - safeMin || 1
+                      return padding + ((safeMax - value) / span) * (height - padding * 2)
+                    }
+
+                    const zeroY = getY(0)
+
+                    return (
+                      <div className="min-w-full">
+                        <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full">
+                          <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#dcd8cc" strokeDasharray="4 4" />
+                          {cumulativeSeries.map((series, idx) => {
+                            const color = colors[idx % colors.length]
+                            const points = series.map((p) => `${getX(p.round)},${getY(p.value)}`).join(' ')
+                            return (
+                              <g key={idx}>
+                                <polyline fill="none" stroke={color} strokeWidth="2.5" points={points} />
+                                {series.map((p, i) => (
+                                  <circle key={i} cx={getX(p.round)} cy={getY(p.value)} r="3.5" fill={color} />
+                                ))}
+                              </g>
+                            )
+                          })}
+                          <g fill="#6f7664" fontSize="10">
+                            <text x={padding} y={padding - 4}>{safeMax}</text>
+                            <text x={padding} y={height - padding + 12}>{safeMin}</text>
+                          </g>
+                        </svg>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-3 text-xs text-muted">
+                {state.players.map((name, idx) => {
+                  const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
+                  return (
+                    <span key={name} className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1">
+                      <span className="h-2 w-4 rounded-sm" style={{ backgroundColor: colors[idx % colors.length] }} aria-hidden />
+                      <span>{name}</span>
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </div>
