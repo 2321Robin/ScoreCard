@@ -16,6 +16,7 @@ function createDefaultState() {
     players: defaultPlayers,
     rounds: [],
     nextRoundId: 1,
+    targetRounds: '',
   }
 }
 
@@ -42,6 +43,7 @@ function loadInitialState() {
       players,
       rounds,
       nextRoundId: parsed.nextRoundId ? parsed.nextRoundId : maxId + 1,
+      targetRounds: typeof parsed.targetRounds === 'number' || typeof parsed.targetRounds === 'string' ? parsed.targetRounds : '',
     }
   } catch (err) {
     console.warn('Failed to load state, using default', err)
@@ -127,14 +129,16 @@ const parseImportedCsv = (text) => {
 
 function App() {
   const [state, setState] = useState(loadInitialState)
-  const [scoreRange, setScoreRange] = useState({ min: -10, max: 10 })
-  const [rangeDraft, setRangeDraft] = useState({ min: '-10', max: '10' })
+  const [scoreRange, setScoreRange] = useState({ min: -10, max: -1 })
+  const [rangeDraft, setRangeDraft] = useState({ min: '-10', max: '-1' })
   const [newRoundScores, setNewRoundScores] = useState([])
   const [editingRoundId, setEditingRoundId] = useState(null)
   const [editScores, setEditScores] = useState([])
   const [showChart, setShowChart] = useState(true)
+  const [targetDraft, setTargetDraft] = useState('')
   const fileInputRef = useRef(null)
   const historyRef = useRef({ past: [], future: [] })
+  const autoExportTriggeredRef = useRef(null)
 
   const scoreOptions = useMemo(() => {
     const options = []
@@ -164,6 +168,10 @@ function App() {
       setEditScores((prev) => ensureLength(prev, state.players.length, ''))
     }
   }, [state.players.length, editingRoundId])
+
+  useEffect(() => {
+    setTargetDraft(state.targetRounds === '' ? '' : String(state.targetRounds))
+  }, [state.targetRounds])
 
   const updateState = (producer) => {
     setState((current) => {
@@ -256,6 +264,21 @@ function App() {
   const submitNewRound = () => {
     addRoundWithScores(newRoundScores)
     setNewRoundScores(Array(state.players.length).fill(''))
+  }
+
+  const applyTargetRounds = () => {
+    const target = Number.parseInt(targetDraft, 10)
+    if (!Number.isFinite(target) || target <= 0) {
+      updateState((prev) => ({ ...prev, targetRounds: '' }))
+      setTargetDraft('')
+      return
+    }
+    if (target <= state.rounds.length) {
+      window.alert('目标局数需大于当前已记录局数')
+      return
+    }
+    autoExportTriggeredRef.current = null
+    updateState((prev) => ({ ...prev, targetRounds: target }))
   }
 
   const deleteRound = (id) => {
@@ -365,11 +388,31 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  useEffect(() => {
+    const target = Number.parseInt(state.targetRounds, 10)
+    if (!Number.isFinite(target) || target <= 0) return
+    if (state.rounds.length >= target && autoExportTriggeredRef.current !== target) {
+      autoExportTriggeredRef.current = target
+      exportCsv()
+      const nextInput = window.prompt(
+        `已达到设定的 ${target} 局，是否继续？输入新的总局数继续，留空或取消则不再提醒。`,
+        String(target + 1),
+      )
+      const nextTarget = Number.parseInt(nextInput ?? '', 10)
+      if (Number.isFinite(nextTarget) && nextTarget > state.rounds.length) {
+        autoExportTriggeredRef.current = null
+        updateState((prev) => ({ ...prev, targetRounds: nextTarget }))
+      } else {
+        updateState((prev) => ({ ...prev, targetRounds: '' }))
+      }
+    }
+  }, [state.rounds.length, state.targetRounds])
+
   const handleImportFile = async (file) => {
     try {
       const text = await file.text()
       const { players, rounds } = parseImportedCsv(text)
-      updateState(() => ({ players, rounds, nextRoundId: rounds.length + 1 }))
+      updateState(() => ({ players, rounds, nextRoundId: rounds.length + 1, targetRounds: '' }))
       setEditingRoundId(null)
       setEditScores([])
       setNewRoundScores(Array(players.length).fill(''))
@@ -402,6 +445,22 @@ function App() {
             <h1 className="text-xl font-semibold">打牌积分表单</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
+              <span>目标局数</span>
+              <input
+                type="number"
+                className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                value={targetDraft}
+                onChange={(e) => setTargetDraft(e.target.value)}
+                aria-label="设定目标局数"
+              />
+              <button
+                className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                onClick={applyTargetRounds}
+              >
+                设定
+              </button>
+            </div>
             <button
               className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               onClick={clearAll}
@@ -663,7 +722,7 @@ function App() {
             <h2 className="text-lg font-semibold">提示</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted">
               <li>先录完负分，留一格空，再点“自动平衡”自动补齐为正，整局合计为 0。</li>
-              <li>分值可直接输入或下拉选择，默认范围 -10~10，可在新增区域自定义。</li>
+              <li>分值可直接输入或下拉选择，默认范围 -10~-1，可在新增区域自定义。</li>
               <li>支持撤销/重做（最多 50 步）；清空前需确认；数据自动保存到本地。</li>
             </ul>
           </div>
