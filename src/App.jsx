@@ -628,12 +628,11 @@ function App() {
   }, [sessionSummaries, sessionSort])
 
   const crossCumulativeSeries = useMemo(() => {
-    const running = Array(allPlayers.length).fill(0)
     const series = allPlayers.map(() => [{ idx: 0, value: 0 }])
     sortedSessions.forEach((session, idx) => {
       allPlayers.forEach((p, pi) => {
-        running[pi] += session.totals[pi] ?? 0
-        series[pi].push({ idx: idx + 1, value: running[pi], label: session.name })
+        const value = session.totals[pi] ?? 0
+        series[pi].push({ idx: idx + 1, value, label: session.name })
       })
     })
     return series
@@ -735,13 +734,33 @@ function App() {
     try {
       const text = await file.text()
       const sessions = parseSessionsFromCsv(text)
-      setState({ sessions, currentSessionId: sessions[0].id })
-      historyRef.current = {}
-      autoExportTriggeredRef.current = {}
+      if (sessions.length > 1) {
+        const replaceAll = window.confirm(`检测到 ${sessions.length} 个会话，确定替换当前所有会话吗？\n选择“确定”导入多会话，选择“取消”仅导入第一个会话到当前会话。`)
+        if (replaceAll) {
+          setState({ sessions, currentSessionId: sessions[0].id })
+          historyRef.current = {}
+          autoExportTriggeredRef.current = {}
+          setEditingRoundId(null)
+          setEditScores([])
+          setNewRoundScores([])
+          alert('导入成功（多会话）')
+          return
+        }
+      }
+
+      const first = sessions[0]
+      updateCurrentSessionState(() => ({
+        ...first,
+        id: currentSession?.id ?? first.id,
+        name: currentSession?.name ?? first.name,
+        nextRoundId: first.nextRoundId ?? first.rounds.length + 1,
+        targetRounds: typeof first.targetRounds === 'number' || typeof first.targetRounds === 'string' ? first.targetRounds : '',
+      }))
+      historyRef.current[currentSession?.id ?? first.id] = { past: [], future: [] }
       setEditingRoundId(null)
       setEditScores([])
-      setNewRoundScores([])
-      alert('导入成功（多会话）')
+      setNewRoundScores(Array(first.players.length).fill(''))
+      alert('导入成功（当前会话）')
     } catch (err) {
       console.error('导入失败', err)
       alert(`导入失败：${err.message || '格式不正确'}`)
@@ -1191,7 +1210,7 @@ function App() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">跨会话总览</h2>
-              <p className="text-sm text-muted">按会话汇总总分与局数，并可查看跨会话累计走势。</p>
+              <p className="text-sm text-muted">按会话汇总总分与局数，并可查看逐会话总分走势（非累计）。</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <label className="flex items-center gap-1 text-muted">
