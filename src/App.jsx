@@ -137,6 +137,20 @@ const formatTimestamp = () => {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
 }
 
+const parseDateFromFilename = (name = '') => {
+  // Match patterns like scores-YYYYMMDD-HHMM, scores_all_YYYYMMDD-HHMM.csv, or any prefix containing the timestamp.
+  const match = name.match(/(\d{4})\D?(\d{2})\D?(\d{2})\D?(\d{2})(\d{2})/)
+  if (!match) return null
+  const [, y, m, d, hh, mm] = match
+  const year = Number.parseInt(y, 10)
+  const month = Number.parseInt(m, 10) - 1
+  const day = Number.parseInt(d, 10)
+  const hour = Number.parseInt(hh, 10)
+  const minute = Number.parseInt(mm, 10)
+  const result = new Date(year, month, day, hour, minute)
+  return Number.isNaN(result.getTime()) ? null : result.getTime()
+}
+
 const parseImportedCsvV1 = (text) => {
   const lines = text
     .replace(/^\ufeff/, '')
@@ -280,6 +294,7 @@ function App() {
   const [editScores, setEditScores] = useState([])
   const [showChart, setShowChart] = useState(true)
   const [showCrossChart, setShowCrossChart] = useState(true)
+  const [showCrossOverview, setShowCrossOverview] = useState(true)
   const [targetDraft, setTargetDraft] = useState('')
   const [sessionNameDraft, setSessionNameDraft] = useState('')
   const [sessionSort, setSessionSort] = useState('created')
@@ -615,6 +630,12 @@ function App() {
     })
   }, [state.sessions, allPlayers])
 
+  const crossSessionAggregate = useMemo(() => {
+    const totals = allPlayers.map((_, idx) => sessionSummaries.reduce((acc, s) => acc + (s.totals[idx] ?? 0), 0))
+    const roundsCount = sessionSummaries.reduce((acc, s) => acc + s.roundsCount, 0)
+    return { totals, roundsCount }
+  }, [allPlayers, sessionSummaries])
+
   const sortedSessions = useMemo(() => {
     const sorted = [...sessionSummaries]
     if (sessionSort === 'rounds') {
@@ -734,10 +755,12 @@ function App() {
     try {
       const text = await file.text()
       const sessions = parseSessionsFromCsv(text)
-      if (sessions.length > 1) {
-        const replaceAll = window.confirm(`检测到 ${sessions.length} 个会话，确定替换当前所有会话吗？\n选择“确定”导入多会话，选择“取消”仅导入第一个会话到当前会话。`)
+      const fileTimestamp = parseDateFromFilename(file.name) ?? (typeof file.lastModified === 'number' ? file.lastModified : null)
+      const sessionsWithDate = sessions.map((s) => ({ ...s, createdAt: fileTimestamp ?? s.createdAt ?? Date.now() }))
+      if (sessionsWithDate.length > 1) {
+        const replaceAll = window.confirm(`检测到 ${sessionsWithDate.length} 个会话，确定替换当前所有会话吗？\n选择“确定”导入多会话，选择“取消”仅导入第一个会话到当前会话。`)
         if (replaceAll) {
-          setState({ sessions, currentSessionId: sessions[0].id })
+          setState({ sessions: sessionsWithDate, currentSessionId: sessionsWithDate[0].id })
           historyRef.current = {}
           autoExportTriggeredRef.current = {}
           setEditingRoundId(null)
@@ -748,7 +771,7 @@ function App() {
         }
       }
 
-      const first = sessions[0]
+      const first = sessionsWithDate[0]
       updateCurrentSessionState(() => ({
         ...first,
         id: currentSession?.id ?? first.id,
@@ -887,6 +910,13 @@ function App() {
               onClick={triggerImport}
             >
               导入 CSV
+            </button>
+            <button
+              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              onClick={() => setShowCrossOverview((v) => !v)}
+              aria-expanded={showCrossOverview}
+            >
+              {showCrossOverview ? '隐藏跨会话总览' : '显示跨会话总览'}
             </button>
             <input
               ref={fileInputRef}
@@ -1209,141 +1239,6 @@ function App() {
         <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">跨会话总览</h2>
-              <p className="text-sm text-muted">按会话汇总总分与局数，并可查看逐会话总分走势（非累计）。</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <label className="flex items-center gap-1 text-muted">
-                <span>排序</span>
-                <select
-                  className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                  value={sessionSort}
-                  onChange={(e) => setSessionSort(e.target.value)}
-                >
-                  <option value="created">创建时间</option>
-                  <option value="rounds">局数降序</option>
-                  <option value="total">总分降序</option>
-                </select>
-              </label>
-              <button
-                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                onClick={() => setShowCrossChart((v) => !v)}
-                aria-expanded={showCrossChart}
-              >
-                {showCrossChart ? '收起跨会话折线图' : '展开跨会话折线图'}
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-auto rounded-lg border border-line">
-            <div className="min-w-[720px]">
-              <div className="grid grid-cols-[140px_100px_140px_120px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: allPlayers.length }}>
-                <div>会话</div>
-                <div>局数</div>
-                <div>创建时间</div>
-                <div>总分</div>
-                {allPlayers.map((p) => (
-                  <div key={p} className="text-center">
-                    {p}
-                  </div>
-                ))}
-              </div>
-
-              {sortedSessions.map((session) => (
-                <div key={session.id} className="grid grid-cols-[140px_100px_140px_120px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
-                  <div className="truncate" title={session.name}>
-                    {session.name}
-                  </div>
-                  <div>{session.roundsCount}</div>
-                  <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
-                    {new Date(session.createdAt || 0).toLocaleDateString()}
-                  </div>
-                  <div>{session.totalSum}</div>
-                  {session.totals.map((t, idx) => (
-                    <div key={idx} className="text-center">
-                      {t === 0 ? '—' : t}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {showCrossChart && allPlayers.length > 0 && (
-            <div className="mt-4 space-y-3">
-              {sortedSessions.length === 0 ? (
-                <p className="text-sm text-muted">暂无会话数据，添加对局后可查看累计走势。</p>
-              ) : (
-                <div className="overflow-auto">
-                  {(() => {
-                    const allValues = crossCumulativeSeries.flatMap((s) => s.map((p) => p.value))
-                    const minValue = Math.min(0, ...allValues)
-                    const maxValue = Math.max(0, ...allValues)
-                    const safeMin = minValue === maxValue ? minValue - 10 : minValue
-                    const safeMax = minValue === maxValue ? maxValue + 10 : maxValue
-                    const padding = 20
-                    const height = 220
-                    const sessionCount = Math.max(...crossCumulativeSeries.map((s) => s.length), 1)
-                    const width = Math.max(320, (sessionCount - 1) * 120 + 80)
-                    const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
-
-                    const getX = (idx) => {
-                      if (sessionCount <= 1) return padding
-                      const ratio = idx / (sessionCount - 1)
-                      return padding + ratio * (width - padding * 2)
-                    }
-
-                    const getY = (value) => {
-                      const span = safeMax - safeMin || 1
-                      return padding + ((safeMax - value) / span) * (height - padding * 2)
-                    }
-
-                    const zeroY = getY(0)
-
-                    return (
-                      <div className="min-w-full">
-                        <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full">
-                          <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#dcd8cc" strokeDasharray="4 4" />
-                          {crossCumulativeSeries.map((series, idx) => {
-                            const color = colors[idx % colors.length]
-                            const points = series.map((p) => `${getX(p.idx)},${getY(p.value)}`).join(' ')
-                            return (
-                              <g key={idx}>
-                                <polyline fill="none" stroke={color} strokeWidth="2.5" points={points} />
-                                {series.map((p, i) => (
-                                  <circle key={i} cx={getX(p.idx)} cy={getY(p.value)} r="3.5" fill={color} />
-                                ))}
-                              </g>
-                            )
-                          })}
-                          <g fill="#6f7664" fontSize="10">
-                            <text x={padding} y={padding - 4}>{safeMax}</text>
-                            <text x={padding} y={height - padding + 12}>{safeMin}</text>
-                          </g>
-                        </svg>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
-              <div className="flex flex-wrap gap-3 text-xs text-muted">
-                {allPlayers.map((name, idx) => {
-                  const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
-                  return (
-                    <span key={name} className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1">
-                      <span className="h-2 w-4 rounded-sm" style={{ backgroundColor: colors[idx % colors.length] }} aria-hidden />
-                      <span>{name}</span>
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
               <h2 className="text-lg font-semibold">分数变化折线图</h2>
               <p className="text-sm text-muted">展示每位玩家的累计总分随对局的变化，便于对局过长时快速查看走势。</p>
             </div>
@@ -1427,6 +1322,152 @@ function App() {
             </div>
           )}
         </section>
+
+        {showCrossOverview && (
+          <section className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">跨会话总览</h2>
+                <p className="text-sm text-muted">按会话汇总总分与局数，并可查看逐会话总分走势（非累计）。</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <label className="flex items-center gap-1 text-muted">
+                  <span>排序</span>
+                  <select
+                    className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                    value={sessionSort}
+                    onChange={(e) => setSessionSort(e.target.value)}
+                  >
+                    <option value="created">创建时间</option>
+                    <option value="rounds">局数降序</option>
+                    <option value="total">总分降序</option>
+                  </select>
+                </label>
+                <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={() => setShowCrossChart((v) => !v)}
+                  aria-expanded={showCrossChart}
+                >
+                  {showCrossChart ? '收起跨会话折线图' : '展开跨会话折线图'}
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto rounded-lg border border-line">
+              <div className="min-w-[720px]">
+                <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: allPlayers.length }}>
+                  <div>会话</div>
+                  <div>局数</div>
+                  <div>创建时间</div>
+                  {allPlayers.map((p) => (
+                    <div key={p} className="text-center">
+                      {p}
+                    </div>
+                  ))}
+                </div>
+
+                {sortedSessions.map((session) => (
+                  <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
+                    <div className="truncate" title={session.name}>
+                      {session.name}
+                    </div>
+                    <div>{session.roundsCount}</div>
+                    <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
+                      {new Date(session.createdAt || 0).toLocaleDateString()}
+                    </div>
+                    {session.totals.map((t, idx) => (
+                      <div key={idx} className="text-center">
+                        {t === 0 ? '—' : t}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+
+                <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: allPlayers.length }}>
+                  <div className="truncate">合计</div>
+                  <div>{crossSessionAggregate.roundsCount}</div>
+                  <div className="text-muted text-xs">—</div>
+                  {crossSessionAggregate.totals.map((t, idx) => (
+                    <div key={idx} className="text-center">
+                      {t === 0 ? '—' : t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {showCrossChart && allPlayers.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {sortedSessions.length === 0 ? (
+                  <p className="text-sm text-muted">暂无会话数据，添加对局后可查看累计走势。</p>
+                ) : (
+                  <div className="overflow-auto">
+                    {(() => {
+                      const allValues = crossCumulativeSeries.flatMap((s) => s.map((p) => p.value))
+                      const minValue = Math.min(0, ...allValues)
+                      const maxValue = Math.max(0, ...allValues)
+                      const safeMin = minValue === maxValue ? minValue - 10 : minValue
+                      const safeMax = minValue === maxValue ? maxValue + 10 : maxValue
+                      const padding = 20
+                      const height = 220
+                      const sessionCount = Math.max(...crossCumulativeSeries.map((s) => s.length), 1)
+                      const width = Math.max(320, (sessionCount - 1) * 120 + 80)
+                      const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
+
+                      const getX = (idx) => {
+                        if (sessionCount <= 1) return padding
+                        const ratio = idx / (sessionCount - 1)
+                        return padding + ratio * (width - padding * 2)
+                      }
+
+                      const getY = (value) => {
+                        const span = safeMax - safeMin || 1
+                        return padding + ((safeMax - value) / span) * (height - padding * 2)
+                      }
+
+                      const zeroY = getY(0)
+
+                      return (
+                        <div className="min-w-full">
+                          <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full">
+                            <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#dcd8cc" strokeDasharray="4 4" />
+                            {crossCumulativeSeries.map((series, idx) => {
+                              const color = colors[idx % colors.length]
+                              const points = series.map((p) => `${getX(p.idx)},${getY(p.value)}`).join(' ')
+                              return (
+                                <g key={idx}>
+                                  <polyline fill="none" stroke={color} strokeWidth="2.5" points={points} />
+                                  {series.map((p, i) => (
+                                    <circle key={i} cx={getX(p.idx)} cy={getY(p.value)} r="3.5" fill={color} />
+                                  ))}
+                                </g>
+                              )
+                            })}
+                            <g fill="#6f7664" fontSize="10">
+                              <text x={padding} y={padding - 4}>{safeMax}</text>
+                              <text x={padding} y={height - padding + 12}>{safeMin}</text>
+                            </g>
+                          </svg>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3 text-xs text-muted">
+                  {allPlayers.map((name, idx) => {
+                    const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
+                    return (
+                      <span key={name} className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1">
+                        <span className="h-2 w-4 rounded-sm" style={{ backgroundColor: colors[idx % colors.length] }} aria-hidden />
+                        <span>{name}</span>
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   )
