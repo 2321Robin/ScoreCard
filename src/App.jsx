@@ -11,6 +11,8 @@ const clampInt = (value) => {
   return Number.isFinite(n) ? n : 0
 }
 
+const createEmptyGangDraft = (count) => Array.from({ length: count }, () => ({ type: 'none', target: null }))
+
 const DEFAULT_MAHJONG_RULES = {
   huPerLoser: 1,
   anGangPerLoser: 1,
@@ -25,7 +27,18 @@ const createSession = ({ id, name, players = defaultPlayers, rounds = [], nextRo
         const rid = typeof r.id === 'number' ? r.id : idx + 1
         const scores = Array.isArray(r.scores) ? r.scores.slice(0, safePlayers.length) : []
         const padded = [...scores, ...Array(safePlayers.length - scores.length).fill(0)]
-        return { id: rid, scores: padded }
+        const gangs = Array.isArray(r.gangs)
+          ? ensureLength(
+              r.gangs.map((g) => ({
+                type: g?.type === 'an' || g?.type === 'dian' ? g.type : 'none',
+                target: Number.isInteger(g?.target) ? g.target : null,
+              })),
+              safePlayers.length,
+              { type: 'none', target: null },
+            )
+          : createEmptyGangDraft(safePlayers.length)
+        const winner = Number.isInteger(r.winner) ? r.winner : null
+        return { id: rid, scores: padded, gangs, winner }
       })
     : []
 
@@ -113,7 +126,10 @@ function loadInitialState() {
 const ensureLength = (arr, target, fill = 0) => {
   const next = arr.slice(0, target)
   if (next.length < target) {
-    next.push(...Array(target - next.length).fill(fill))
+    const make = typeof fill === 'object' && fill !== null ? () => ({ ...fill }) : () => fill
+    for (let i = next.length; i < target; i += 1) {
+      next.push(make())
+    }
   }
   return next
 }
@@ -313,6 +329,9 @@ function App() {
   const [gangDraft, setGangDraft] = useState([])
   const [mahjongRulesDraft, setMahjongRulesDraft] = useState({ ...DEFAULT_MAHJONG_RULES })
   const [showCrossOverview, setShowCrossOverview] = useState(true)
+  const [sessionFilterMode, setSessionFilterMode] = useState('all')
+  const [selectedSessionIds, setSelectedSessionIds] = useState([])
+  const [overviewMetric, setOverviewMetric] = useState('score')
   const [targetDraft, setTargetDraft] = useState('')
   const [sessionNameDraft, setSessionNameDraft] = useState('')
   const [sessionSort, setSessionSort] = useState('created')
@@ -355,7 +374,7 @@ function App() {
     setEditingRoundId(null)
     setEditScores([])
     setWinnerDraft(null)
-    setGangDraft(Array(players.length).fill({ type: 'none', target: null }))
+    setGangDraft(createEmptyGangDraft(players.length))
     setSessionNameDraft(currentSession?.name ?? '')
   }, [currentSession?.id, players.length])
 
@@ -374,6 +393,15 @@ function App() {
   useEffect(() => {
     setMahjongRulesDraft(state.mahjongRules || { ...DEFAULT_MAHJONG_RULES })
   }, [state.mahjongRules])
+
+  useEffect(() => {
+    const ids = state.sessions.map((s) => s.id)
+    setSelectedSessionIds((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) return ids
+      const next = prev.filter((id) => ids.includes(id))
+      return next.length === 0 ? ids : next
+    })
+  }, [state.sessions])
 
   const pushHistory = (sessionId, currentState, future = []) => {
     const bucket = historyRef.current[sessionId] ?? { past: [], future: [] }
@@ -507,12 +535,15 @@ function App() {
     })
   }
 
-  const addRoundWithScores = (scores = []) => {
+  const addRoundWithScores = (scores = [], meta = {}) => {
     updateCurrentSessionState((prev) => {
       const padded = ensureLength(scores, prev.players.length, '').map(clampInt)
+      const gangs = ensureLength(meta.gangs ?? [], prev.players.length, { type: 'none', target: null })
       const round = {
         id: prev.nextRoundId,
         scores: padded,
+        winner: Number.isInteger(meta.winner) ? meta.winner : null,
+        gangs,
       }
       return {
         ...prev,
@@ -588,9 +619,9 @@ function App() {
   const submitNewRound = () => {
     if (state.scoringMode === 'mahjong') {
       const scores = computeMahjongScores()
-      addRoundWithScores(scores)
+      addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft })
       setWinnerDraft(null)
-      setGangDraft(Array(players.length).fill({ type: 'none', target: null }))
+      setGangDraft(createEmptyGangDraft(players.length))
     } else {
       addRoundWithScores(newRoundScores)
       setNewRoundScores(Array(players.length).fill(''))
@@ -692,6 +723,18 @@ function App() {
     return names
   }, [state.sessions])
 
+  const deriveRoundWinners = (round) => {
+    if (Number.isInteger(round?.winner)) return [round.winner]
+    const scores = Array.isArray(round?.scores) ? round.scores.map(clampInt) : []
+    if (scores.length === 0) return []
+    const max = Math.max(...scores)
+    if (!Number.isFinite(max) || max <= 0) return []
+    return scores.reduce((acc, v, idx) => {
+      if (v === max) acc.push(idx)
+      return acc
+    }, [])
+  }
+
   const sessionSummaries = useMemo(() => {
     return state.sessions.map((session) => {
       const perPlayerTotals = allPlayers.map((p) => {
@@ -699,6 +742,31 @@ function App() {
         if (idx === -1) return 0
         return session.rounds.reduce((acc, r) => acc + clampInt(r.scores[idx] ?? 0), 0)
       })
+
+      const wins = allPlayers.map(() => 0)
+      const huCounts = allPlayers.map(() => 0)
+      const gangCounts = allPlayers.map(() => 0)
+
+      session.rounds.forEach((round) => {
+        const winners = deriveRoundWinners(round)
+        const isMahjongRound = Array.isArray(round.gangs) || Number.isInteger(round.winner)
+        winners.forEach((w) => {
+          const globalIdx = session.players[w] ? allPlayers.indexOf(session.players[w]) : -1
+          if (globalIdx !== -1) {
+            wins[globalIdx] += 1
+            if (isMahjongRound) huCounts[globalIdx] += 1
+          }
+        })
+
+        if (Array.isArray(round.gangs)) {
+          round.gangs.forEach((g, idx) => {
+            if (!g || (g.type !== 'an' && g.type !== 'dian')) return
+            const globalIdx = session.players[idx] ? allPlayers.indexOf(session.players[idx]) : -1
+            if (globalIdx !== -1) gangCounts[globalIdx] += 1
+          })
+        }
+      })
+
       const totalSum = perPlayerTotals.reduce((acc, v) => acc + v, 0)
       return {
         id: session.id,
@@ -706,16 +774,13 @@ function App() {
         roundsCount: session.rounds.length,
         createdAt: session.createdAt,
         totals: perPlayerTotals,
+        wins,
+        huCounts,
+        gangCounts,
         totalSum,
       }
     })
   }, [state.sessions, allPlayers])
-
-  const crossSessionAggregate = useMemo(() => {
-    const totals = allPlayers.map((_, idx) => sessionSummaries.reduce((acc, s) => acc + (s.totals[idx] ?? 0), 0))
-    const roundsCount = sessionSummaries.reduce((acc, s) => acc + s.roundsCount, 0)
-    return { totals, roundsCount }
-  }, [allPlayers, sessionSummaries])
 
   const sortedSessions = useMemo(() => {
     const sorted = [...sessionSummaries]
@@ -729,16 +794,40 @@ function App() {
     return sorted
   }, [sessionSummaries, sessionSort])
 
+  const filteredSessions = useMemo(() => {
+    if (sessionFilterMode !== 'custom') return sortedSessions
+    const filtered = sortedSessions.filter((s) => selectedSessionIds.includes(s.id))
+    return filtered.length > 0 ? filtered : sortedSessions
+  }, [sortedSessions, sessionFilterMode, selectedSessionIds])
+
+  const crossSessionAggregate = useMemo(() => {
+    const base = filteredSessions
+    const totals = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.totals[idx] ?? 0), 0))
+    const wins = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.wins?.[idx] ?? 0), 0))
+    const roundsCount = base.reduce((acc, s) => acc + s.roundsCount, 0)
+    const huCounts = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.huCounts?.[idx] ?? 0), 0))
+    const gangCounts = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.gangCounts?.[idx] ?? 0), 0))
+    return { totals, wins, roundsCount, huCounts, gangCounts }
+  }, [allPlayers, filteredSessions])
+
+  const getSessionMetricValues = (session, metric) => {
+    if (metric === 'win') return session.wins ?? []
+    if (metric === 'hu') return session.huCounts ?? []
+    if (metric === 'gang') return session.gangCounts ?? []
+    return session.totals ?? []
+  }
+
   const crossCumulativeSeries = useMemo(() => {
     const series = allPlayers.map(() => [{ idx: 0, value: 0 }])
-    sortedSessions.forEach((session, idx) => {
+    filteredSessions.forEach((session, idx) => {
       allPlayers.forEach((p, pi) => {
-        const value = session.totals[pi] ?? 0
+        const metricValues = getSessionMetricValues(session, overviewMetric)
+        const value = metricValues[pi] ?? 0
         series[pi].push({ idx: idx + 1, value, label: session.name })
       })
     })
     return series
-  }, [allPlayers, sortedSessions])
+  }, [allPlayers, filteredSessions, overviewMetric])
 
   const cumulativeSeries = useMemo(() => {
     const series = players.map(() => [{ round: 0, value: 0 }])
@@ -757,6 +846,31 @@ function App() {
     if (state.scoringMode !== 'mahjong') return []
     return computeMahjongScores()
   }, [state.scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length])
+
+  const currentMahjongStats = useMemo(() => {
+    const wins = Array(players.length).fill(0)
+    const huCounts = Array(players.length).fill(0)
+    const gangCounts = Array(players.length).fill(0)
+
+    rounds.forEach((round) => {
+      const winners = deriveRoundWinners(round)
+      const isMahjongRound = Array.isArray(round.gangs) || Number.isInteger(round.winner)
+      winners.forEach((w) => {
+        if (w >= 0 && w < players.length) {
+          wins[w] += 1
+          if (isMahjongRound) huCounts[w] += 1
+        }
+      })
+      if (Array.isArray(round.gangs)) {
+        round.gangs.forEach((g, idx) => {
+          if (!g || (g.type !== 'an' && g.type !== 'dian')) return
+          if (idx >= 0 && idx < players.length) gangCounts[idx] += 1
+        })
+      }
+    })
+
+    return { wins, huCounts, gangCounts }
+  }, [rounds, players.length])
 
   const leader = Math.max(...totals)
   const exportCurrentCsv = () => {
@@ -1166,6 +1280,25 @@ function App() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
+                          {state.scoringMode === 'mahjong' && !isEditing && (
+                            <>
+                              <span className="rounded-full bg-panel px-2 py-1">胡：{Number.isInteger(round.winner) ? players[round.winner] || '—' : '无'}</span>
+                              <span className="rounded-full bg-panel px-2 py-1">
+                                杠：
+                                {Array.isArray(round.gangs) && round.gangs.some((g) => g && g.type !== 'none')
+                                  ? round.gangs
+                                      .map((g, idx) => {
+                                        if (!g || g.type === 'none') return null
+                                        if (g.type === 'an') return `${players[idx] || ''} 暗杠`
+                                        if (g.type === 'dian') return `${players[idx] || ''} 点 ${players[g.target] || ''}`
+                                        return null
+                                      })
+                                      .filter(Boolean)
+                                      .join('，') || '无'
+                                  : '无'}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -1458,6 +1591,9 @@ function App() {
                       {leading && <span className="text-accent">领先</span>}
                     </div>
                     <div className="mt-1 text-2xl font-semibold">{score}</div>
+                    {state.scoringMode === 'mahjong' && (currentMahjongStats.huCounts[idx] > 0 || currentMahjongStats.gangCounts[idx] > 0) && (
+                      <div className="mt-1 text-xs text-muted">胡 {currentMahjongStats.huCounts[idx]} · 杠 {currentMahjongStats.gangCounts[idx]}</div>
+                    )}
                   </div>
                 )
               })}
@@ -1565,7 +1701,7 @@ function App() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">跨会话总览</h2>
-                <p className="text-sm text-muted">按会话汇总总分与局数，并可查看逐会话总分走势（非累计）。</p>
+                <p className="text-sm text-muted">按会话汇总局数与指标（总分/赢局/胡/杠），并可查看逐会话指标走势（非累计）。</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <label className="flex items-center gap-1 text-muted">
@@ -1580,6 +1716,30 @@ function App() {
                     <option value="total">总分降序</option>
                   </select>
                 </label>
+                <label className="flex items-center gap-1 text-muted">
+                  <span>指标</span>
+                  <select
+                    className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                    value={overviewMetric}
+                    onChange={(e) => setOverviewMetric(e.target.value)}
+                  >
+                    <option value="score">总分</option>
+                    <option value="win">赢局数</option>
+                    <option value="hu">胡数（麻将）</option>
+                    <option value="gang">杠数（麻将）</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-muted">
+                  <span>范围</span>
+                  <select
+                    className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                    value={sessionFilterMode}
+                    onChange={(e) => setSessionFilterMode(e.target.value)}
+                  >
+                    <option value="all">全部会话</option>
+                    <option value="custom">自定义</option>
+                  </select>
+                </label>
                 <button
                   className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                   onClick={() => setShowCrossChart((v) => !v)}
@@ -1588,6 +1748,44 @@ function App() {
                   {showCrossChart ? '收起跨会话折线图' : '展开跨会话折线图'}
                 </button>
               </div>
+            </div>
+
+            {sessionFilterMode === 'custom' && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                {sortedSessions.map((s) => {
+                  const checked = selectedSessionIds.includes(s.id)
+                  return (
+                    <label key={s.id} className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 shadow-sm">
+                      <input
+                        type="checkbox"
+                        className="accent-accent"
+                        checked={checked}
+                        onChange={(e) => {
+                          const { checked: isChecked } = e.target
+                          setSelectedSessionIds((prev) => {
+                            if (isChecked) return Array.from(new Set([...prev, s.id]))
+                            return prev.filter((id) => id !== s.id)
+                          })
+                        }}
+                      />
+                      <span className="truncate max-w-[140px]" title={s.name}>
+                        {s.name}
+                      </span>
+                      <span className="text-xs text-muted">{new Date(s.createdAt || 0).toLocaleDateString()}</span>
+                    </label>
+                  )
+                })}
+                <button
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-muted hover:border-accent"
+                  onClick={() => setSelectedSessionIds(sortedSessions.map((s) => s.id))}
+                >
+                  全选
+                </button>
+              </div>
+            )}
+
+            <div className="mb-2 text-xs uppercase tracking-wide text-muted">
+              当前指标：{overviewMetric === 'win' ? '赢局数' : overviewMetric === 'hu' ? '胡数（麻将）' : overviewMetric === 'gang' ? '杠数（麻将）' : '总分'}
             </div>
 
             <div className="overflow-auto rounded-lg border border-line">
@@ -1603,39 +1801,53 @@ function App() {
                   ))}
                 </div>
 
-                {sortedSessions.map((session) => (
-                  <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
-                    <div className="truncate" title={session.name}>
-                      {session.name}
-                    </div>
-                    <div>{session.roundsCount}</div>
-                    <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
-                      {new Date(session.createdAt || 0).toLocaleDateString()}
-                    </div>
-                    {session.totals.map((t, idx) => (
-                      <div key={idx} className="text-center">
-                        {t === 0 ? '—' : t}
+                {filteredSessions.map((session) => {
+                  const metricValues = getSessionMetricValues(session, overviewMetric)
+                  return (
+                    <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
+                      <div className="truncate" title={session.name}>
+                        {session.name}
                       </div>
-                    ))}
-                  </div>
-                ))}
-
-                <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: allPlayers.length }}>
-                  <div className="truncate">合计</div>
-                  <div>{crossSessionAggregate.roundsCount}</div>
-                  <div className="text-muted text-xs">—</div>
-                  {crossSessionAggregate.totals.map((t, idx) => (
-                    <div key={idx} className="text-center">
-                      {t === 0 ? '—' : t}
+                      <div>{session.roundsCount}</div>
+                      <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
+                        {new Date(session.createdAt || 0).toLocaleDateString()}
+                      </div>
+                      {allPlayers.map((_, idx) => {
+                        const value = metricValues[idx] ?? 0
+                        return (
+                          <div key={idx} className="text-center">
+                            {value === 0 ? '—' : value}
+                          </div>
+                        )
+                      })}
                     </div>
-                  ))}
-                </div>
+                  )
+                })}
+
+                {(() => {
+                  const aggregateValues = getSessionMetricValues(crossSessionAggregate, overviewMetric)
+                  return (
+                    <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: allPlayers.length }}>
+                      <div className="truncate">合计</div>
+                      <div>{crossSessionAggregate.roundsCount}</div>
+                      <div className="text-muted text-xs">—</div>
+                      {allPlayers.map((_, idx) => {
+                        const value = aggregateValues[idx] ?? 0
+                        return (
+                          <div key={idx} className="text-center">
+                            {value === 0 ? '—' : value}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
             {showCrossChart && allPlayers.length > 0 && (
               <div className="mt-4 space-y-3">
-                {sortedSessions.length === 0 ? (
+                {filteredSessions.length === 0 ? (
                   <p className="text-sm text-muted">暂无会话数据，添加对局后可查看累计走势。</p>
                 ) : (
                   <div className="overflow-auto">
