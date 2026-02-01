@@ -11,6 +11,12 @@ const clampInt = (value) => {
   return Number.isFinite(n) ? n : 0
 }
 
+const DEFAULT_MAHJONG_RULES = {
+  huPerLoser: 1,
+  anGangPerLoser: 1,
+  dianGangAmount: 1,
+}
+
 const createSession = ({ id, name, players = defaultPlayers, rounds = [], nextRoundId = 1, targetRounds = '' }) => {
   const safePlayers = Array.isArray(players) && players.length >= MIN_PLAYERS ? players.slice(0, MAX_PLAYERS) : defaultPlayers
 
@@ -41,6 +47,8 @@ const createDefaultState = () => {
   return {
     sessions: [firstSession],
     currentSessionId: firstSession.id,
+    scoringMode: 'standard',
+    mahjongRules: { ...DEFAULT_MAHJONG_RULES },
   }
 }
 
@@ -73,7 +81,12 @@ function loadInitialState() {
         ? parsed.currentSessionId
         : sessions[0].id
 
-      return { sessions, currentSessionId }
+      return {
+        sessions,
+        currentSessionId,
+        scoringMode: parsed.scoringMode || 'standard',
+        mahjongRules: parsed.mahjongRules || { ...DEFAULT_MAHJONG_RULES },
+      }
     }
 
     // v1: 单会话结构，包装为会话
@@ -89,6 +102,8 @@ function loadInitialState() {
     return {
       sessions: [sessionFromV1],
       currentSessionId: 1,
+      scoringMode: 'standard',
+      mahjongRules: { ...DEFAULT_MAHJONG_RULES },
     }
   } catch (err) {
     console.warn('Failed to load state, using default', err)
@@ -294,6 +309,9 @@ function App() {
   const [editScores, setEditScores] = useState([])
   const [showChart, setShowChart] = useState(true)
   const [showCrossChart, setShowCrossChart] = useState(true)
+  const [winnerDraft, setWinnerDraft] = useState(null)
+  const [gangDraft, setGangDraft] = useState([])
+  const [mahjongRulesDraft, setMahjongRulesDraft] = useState({ ...DEFAULT_MAHJONG_RULES })
   const [showCrossOverview, setShowCrossOverview] = useState(true)
   const [targetDraft, setTargetDraft] = useState('')
   const [sessionNameDraft, setSessionNameDraft] = useState('')
@@ -336,6 +354,8 @@ function App() {
     setNewRoundScores(Array(players.length).fill(''))
     setEditingRoundId(null)
     setEditScores([])
+    setWinnerDraft(null)
+    setGangDraft(Array(players.length).fill({ type: 'none', target: null }))
     setSessionNameDraft(currentSession?.name ?? '')
   }, [currentSession?.id, players.length])
 
@@ -344,11 +364,16 @@ function App() {
     if (editingRoundId !== null) {
       setEditScores((prev) => ensureLength(prev, players.length, ''))
     }
+    setGangDraft((prev) => ensureLength(prev, players.length, { type: 'none', target: null }))
   }, [players.length, editingRoundId])
 
   useEffect(() => {
     setTargetDraft(targetRounds === '' ? '' : String(targetRounds))
   }, [targetRounds])
+
+  useEffect(() => {
+    setMahjongRulesDraft(state.mahjongRules || { ...DEFAULT_MAHJONG_RULES })
+  }, [state.mahjongRules])
 
   const pushHistory = (sessionId, currentState, future = []) => {
     const bucket = historyRef.current[sessionId] ?? { past: [], future: [] }
@@ -415,6 +440,7 @@ function App() {
       const newSession = createSession({ id: nextId, name: `会话 ${current.sessions.length + 1}` })
       historyRef.current = { ...historyRef.current, [nextId]: { past: [], future: [] } }
       return {
+        ...current,
         sessions: [...current.sessions, newSession],
         currentSessionId: nextId,
       }
@@ -436,6 +462,7 @@ function App() {
       const { [current.currentSessionId]: __, ...restAuto } = autoExportTriggeredRef.current
       autoExportTriggeredRef.current = restAuto
       return {
+        ...current,
         sessions: nextSessions,
         currentSessionId: nextId,
       }
@@ -495,6 +522,53 @@ function App() {
     })
   }
 
+  const applyMahjongRules = () => {
+    const huPerLoser = clampInt(mahjongRulesDraft.huPerLoser)
+    const anGangPerLoser = clampInt(mahjongRulesDraft.anGangPerLoser)
+    const dianGangAmount = clampInt(mahjongRulesDraft.dianGangAmount)
+    setState((current) => ({
+      ...current,
+      mahjongRules: {
+        huPerLoser,
+        anGangPerLoser,
+        dianGangAmount,
+      },
+    }))
+  }
+
+  const computeMahjongScores = () => {
+    const len = players.length
+    const scores = Array(len).fill(0)
+    const rules = state.mahjongRules || DEFAULT_MAHJONG_RULES
+
+    if (winnerDraft !== null && winnerDraft >= 0 && winnerDraft < len) {
+      const hu = clampInt(rules.huPerLoser ?? DEFAULT_MAHJONG_RULES.huPerLoser)
+      scores[winnerDraft] += hu * (len - 1)
+      for (let i = 0; i < len; i += 1) {
+        if (i === winnerDraft) continue
+        scores[i] -= hu
+      }
+    }
+
+    gangDraft.forEach((g, idx) => {
+      if (!g || g.type === 'none') return
+      if (g.type === 'an') {
+        const gain = clampInt(rules.anGangPerLoser ?? DEFAULT_MAHJONG_RULES.anGangPerLoser)
+        scores[idx] += gain * (len - 1)
+        for (let i = 0; i < len; i += 1) {
+          if (i === idx) continue
+          scores[i] -= gain
+        }
+      } else if (g.type === 'dian' && Number.isInteger(g.target) && g.target !== idx && g.target >= 0 && g.target < len) {
+        const gain = clampInt(rules.dianGangAmount ?? DEFAULT_MAHJONG_RULES.dianGangAmount)
+        scores[idx] += gain
+        scores[g.target] -= gain
+      }
+    })
+
+    return scores
+  }
+
   const updateNewRoundScore = (playerIndex, value) => {
     setNewRoundScores((prev) => prev.map((s, i) => (i === playerIndex ? value : s)))
   }
@@ -512,8 +586,15 @@ function App() {
   }
 
   const submitNewRound = () => {
-    addRoundWithScores(newRoundScores)
-    setNewRoundScores(Array(players.length).fill(''))
+    if (state.scoringMode === 'mahjong') {
+      const scores = computeMahjongScores()
+      addRoundWithScores(scores)
+      setWinnerDraft(null)
+      setGangDraft(Array(players.length).fill({ type: 'none', target: null }))
+    } else {
+      addRoundWithScores(newRoundScores)
+      setNewRoundScores(Array(players.length).fill(''))
+    }
   }
 
   const applyTargetRounds = () => {
@@ -672,6 +753,11 @@ function App() {
     return series
   }, [players, rounds])
 
+  const mahjongPreviewScores = useMemo(() => {
+    if (state.scoringMode !== 'mahjong') return []
+    return computeMahjongScores()
+  }, [state.scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length])
+
   const leader = Math.max(...totals)
   const exportCurrentCsv = () => {
     const rows = []
@@ -760,7 +846,11 @@ function App() {
       if (sessionsWithDate.length > 1) {
         const replaceAll = window.confirm(`检测到 ${sessionsWithDate.length} 个会话，确定替换当前所有会话吗？\n选择“确定”导入多会话，选择“取消”仅导入第一个会话到当前会话。`)
         if (replaceAll) {
-          setState({ sessions: sessionsWithDate, currentSessionId: sessionsWithDate[0].id })
+          setState((prev) => ({
+            ...prev,
+            sessions: sessionsWithDate,
+            currentSessionId: sessionsWithDate[0].id,
+          }))
           historyRef.current = {}
           autoExportTriggeredRef.current = {}
           setEditingRoundId(null)
@@ -872,6 +962,17 @@ function App() {
               >
                 设定
               </button>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
+              <span>模式</span>
+              <select
+                className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                value={state.scoringMode || 'standard'}
+                onChange={(e) => setState((current) => ({ ...current, scoringMode: e.target.value }))}
+              >
+                <option value="standard">积分模式</option>
+                <option value="mahjong">麻将模式</option>
+              </select>
             </div>
             <button
               className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -1126,81 +1227,217 @@ function App() {
               <h2 className="text-lg font-semibold">新增一局</h2>
               <p className="text-sm text-muted">在此填写分值并添加；如需调整已存在的记录，请在下方列表中点击编辑。</p>
             </div>
-            <div className="flex flex-col gap-2 text-sm sm:items-end">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted">分值范围</span>
-                <input
-                  type="number"
-                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                  aria-label="分值下限"
-                  value={rangeDraft.min}
-                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, min: e.target.value }))}
-                />
-                <span className="text-muted">到</span>
-                <input
-                  type="number"
-                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                  aria-label="分值上限"
-                  value={rangeDraft.max}
-                  onChange={(e) => setRangeDraft((prev) => ({ ...prev, max: e.target.value }))}
-                />
-                <button
-                  className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                  onClick={applyRangeDraft}
-                >
-                  更新范围
-                </button>
+            {state.scoringMode === 'standard' ? (
+              <div className="flex flex-col gap-2 text-sm sm:items-end">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted">分值范围</span>
+                  <input
+                    type="number"
+                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    aria-label="分值下限"
+                    value={rangeDraft.min}
+                    onChange={(e) => setRangeDraft((prev) => ({ ...prev, min: e.target.value }))}
+                  />
+                  <span className="text-muted">到</span>
+                  <input
+                    type="number"
+                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    aria-label="分值上限"
+                    value={rangeDraft.max}
+                    onChange={(e) => setRangeDraft((prev) => ({ ...prev, max: e.target.value }))}
+                  />
+                  <button
+                    className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                    onClick={applyRangeDraft}
+                  >
+                    更新范围
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                    onClick={autoBalanceNewRound}
+                  >
+                    自动平衡
+                  </button>
+                  <button
+                    className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                    onClick={submitNewRound}
+                  >
+                    添加本局
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                  onClick={autoBalanceNewRound}
-                >
-                  自动平衡
-                </button>
-                <button
-                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                  onClick={submitNewRound}
-                >
-                  添加本局
-                </button>
+            ) : (
+              <div className="flex flex-col gap-2 text-sm sm:items-end">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted">胡分</span>
+                  <input
+                    type="number"
+                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    aria-label="胡分（每家付）"
+                    value={mahjongRulesDraft.huPerLoser}
+                    onChange={(e) => setMahjongRulesDraft((prev) => ({ ...prev, huPerLoser: e.target.value }))}
+                  />
+                  <span className="text-muted">暗杠分</span>
+                  <input
+                    type="number"
+                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    aria-label="暗杠分（每家付）"
+                    value={mahjongRulesDraft.anGangPerLoser}
+                    onChange={(e) => setMahjongRulesDraft((prev) => ({ ...prev, anGangPerLoser: e.target.value }))}
+                  />
+                  <span className="text-muted">点杠分</span>
+                  <input
+                    type="number"
+                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                    aria-label="点杠分"
+                    value={mahjongRulesDraft.dianGangAmount}
+                    onChange={(e) => setMahjongRulesDraft((prev) => ({ ...prev, dianGangAmount: e.target.value }))}
+                  />
+                  <button
+                    className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                    onClick={applyMahjongRules}
+                  >
+                    更新规则
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                    onClick={submitNewRound}
+                  >
+                    添加本局
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {players.map((name, idx) => (
-              <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
-                <div className="flex flex-col gap-2 text-sm text-muted">
-                  <span className="font-medium text-text text-center">{name}</span>
-                  <input
-                    id={`new-score-${idx}`}
-                    aria-label={`新增一局，玩家 ${name}`}
-                    type="text"
-                    inputMode="numeric"
-                    className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                    value={newRoundScores[idx] ?? ''}
-                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
-                  />
+          {state.scoringMode === 'standard' ? (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {players.map((name, idx) => (
+                <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
+                  <div className="flex flex-col gap-2 text-sm text-muted">
+                    <span className="font-medium text-text text-center">{name}</span>
+                    <input
+                      id={`new-score-${idx}`}
+                      aria-label={`新增一局，玩家 ${name}`}
+                      type="text"
+                      inputMode="numeric"
+                      className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                      value={newRoundScores[idx] ?? ''}
+                      onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                    />
+                    <select
+                      aria-label={`从下拉选择分值，玩家 ${name}`}
+                      className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
+                      value=""
+                      onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                    >
+                      <option value="" disabled>
+                        下拉选择
+                      </option>
+                      {scoreOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="text-sm text-muted">选择胡的玩家</div>
                   <select
-                    aria-label={`从下拉选择分值，玩家 ${name}`}
-                    className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
-                    value=""
-                    onChange={(e) => updateNewRoundScore(idx, e.target.value)}
+                    className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                    value={winnerDraft ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                      setWinnerDraft(Number.isFinite(v) ? v : null)
+                    }}
                   >
-                    <option value="" disabled>
-                      下拉选择
-                    </option>
-                    {scoreOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
+                    <option value="">无</option>
+                    {players.map((name, idx) => (
+                      <option key={name} value={idx}>
+                        {name}
                       </option>
                     ))}
                   </select>
                 </div>
+                <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="text-sm text-muted">本局预览分数（含胡/杠）</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    {players.map((name, idx) => (
+                      <div key={name} className="rounded-md border border-line bg-panel px-2 py-2">
+                        <div className="text-muted">{name}</div>
+                        <div className="text-lg font-semibold text-text">{mahjongPreviewScores[idx] ?? 0}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {players.map((name, idx) => (
+                  <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
+                    <div className="flex flex-col gap-2 text-sm text-muted">
+                      <span className="font-medium text-text text-center">{name}</span>
+                      <label className="flex flex-col gap-1">
+                        <span>杠类型</span>
+                        <select
+                          className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                          value={gangDraft[idx]?.type ?? 'none'}
+                          onChange={(e) => {
+                            const type = e.target.value
+                            setGangDraft((prev) => {
+                              const next = ensureLength(prev, players.length, { type: 'none', target: null })
+                              next[idx] = { type, target: type === 'dian' ? (next[idx]?.target ?? 0) : null }
+                              return [...next]
+                            })
+                          }}
+                        >
+                          <option value="none">无</option>
+                          <option value="an">暗杠</option>
+                          <option value="dian">点杠</option>
+                        </select>
+                      </label>
+                      {gangDraft[idx]?.type === 'dian' && (
+                        <label className="flex flex-col gap-1">
+                          <span>点谁</span>
+                          <select
+                            className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                            value={gangDraft[idx]?.target ?? ''}
+                            onChange={(e) => {
+                              const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                              setGangDraft((prev) => {
+                                const next = ensureLength(prev, players.length, { type: 'none', target: null })
+                                next[idx] = { ...next[idx], target: Number.isFinite(target) ? target : null }
+                                return [...next]
+                              })
+                            }}
+                          >
+                            <option value="">选择被点玩家</option>
+                            {players.map((p, pi) => (
+                              pi === idx ? null : (
+                                <option key={p} value={pi}>
+                                  {p}
+                                </option>
+                              )
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
