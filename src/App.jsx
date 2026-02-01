@@ -1,320 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { DEFAULT_MAHJONG_RULES, MAX_HISTORY, MAX_PLAYERS, MIN_PLAYERS, STORAGE_KEY, defaultPlayers } from './lib/constants'
+import { clampInt, ensureLength, formatTimestamp, parseDateFromFilename } from './lib/helpers'
+import { computeMahjongScores, createEmptyGangDraft, deriveRoundWinners } from './lib/mahjong'
+import { csvEscape, splitCsvLine } from './lib/csv'
+import { createSession, loadInitialState, parseSessionsFromCsv } from './lib/sessions'
 
-const STORAGE_KEY = 'dapai-score-state-v1'
-const MAX_PLAYERS = 8
-const MIN_PLAYERS = 2
-const MAX_HISTORY = 50
-
-const defaultPlayers = ['玩家 A', '玩家 B', '玩家 C', '玩家 D']
-const clampInt = (value) => {
-  const n = Number.parseInt(value, 10)
-  return Number.isFinite(n) ? n : 0
-}
-
-const createEmptyGangDraft = (count) => Array.from({ length: count }, () => ({ type: 'none', target: null }))
-
-const DEFAULT_MAHJONG_RULES = {
-  huPerLoser: 1,
-  anGangPerLoser: 1,
-  dianGangAmount: 1,
-}
-
-const createSession = ({ id, name, players = defaultPlayers, rounds = [], nextRoundId = 1, targetRounds = '' }) => {
-  const safePlayers = Array.isArray(players) && players.length >= MIN_PLAYERS ? players.slice(0, MAX_PLAYERS) : defaultPlayers
-
-  const normalizedRounds = Array.isArray(rounds)
-    ? rounds.map((r, idx) => {
-        const rid = typeof r.id === 'number' ? r.id : idx + 1
-        const scores = Array.isArray(r.scores) ? r.scores.slice(0, safePlayers.length) : []
-        const padded = [...scores, ...Array(safePlayers.length - scores.length).fill(0)]
-        const gangs = Array.isArray(r.gangs)
-          ? ensureLength(
-              r.gangs.map((g) => ({
-                type: g?.type === 'an' || g?.type === 'dian' ? g.type : 'none',
-                target: Number.isInteger(g?.target) ? g.target : null,
-              })),
-              safePlayers.length,
-              { type: 'none', target: null },
-            )
-          : createEmptyGangDraft(safePlayers.length)
-        const winner = Number.isInteger(r.winner) ? r.winner : null
-        return { id: rid, scores: padded, gangs, winner }
-      })
-    : []
-
-  const maxId = Math.max(...normalizedRounds.map((r) => r.id), 0)
-
-  return {
-    id,
-    name: name || `会话 ${id}`,
-    players: safePlayers,
-    rounds: normalizedRounds,
-    nextRoundId: typeof nextRoundId === 'number' && nextRoundId > maxId ? nextRoundId : maxId + 1,
-    targetRounds: typeof targetRounds === 'number' || typeof targetRounds === 'string' ? targetRounds : '',
-    createdAt: Date.now(),
-  }
-}
-
-const createDefaultState = () => {
-  const firstSession = createSession({ id: 1, name: '会话 1' })
-  return {
-    sessions: [firstSession],
-    currentSessionId: firstSession.id,
-    scoringMode: 'standard',
-    mahjongRules: { ...DEFAULT_MAHJONG_RULES },
-  }
-}
-
-function loadInitialState() {
-  if (typeof window === 'undefined') return createDefaultState()
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return createDefaultState()
-
-    const parsed = JSON.parse(raw)
-
-    // v2: sessions 已存在
-    if (Array.isArray(parsed.sessions)) {
-      const sessions = parsed.sessions
-        .map((s, idx) => createSession({
-          id: typeof s.id === 'number' ? s.id : idx + 1,
-          name: s.name,
-          players: s.players,
-          rounds: s.rounds,
-          nextRoundId: s.nextRoundId,
-          targetRounds: s.targetRounds,
-        }))
-        .slice(0, 50)
-
-      if (sessions.length === 0) {
-        return createDefaultState()
-      }
-
-      const currentSessionId = sessions.some((s) => s.id === parsed.currentSessionId)
-        ? parsed.currentSessionId
-        : sessions[0].id
-
-      return {
-        sessions,
-        currentSessionId,
-        scoringMode: parsed.scoringMode || 'standard',
-        mahjongRules: parsed.mahjongRules || { ...DEFAULT_MAHJONG_RULES },
-      }
-    }
-
-    // v1: 单会话结构，包装为会话
-    const sessionFromV1 = createSession({
-      id: 1,
-      name: '会话 1',
-      players: parsed.players,
-      rounds: parsed.rounds,
-      nextRoundId: parsed.nextRoundId,
-      targetRounds: parsed.targetRounds,
-    })
-
-    return {
-      sessions: [sessionFromV1],
-      currentSessionId: 1,
-      scoringMode: 'standard',
-      mahjongRules: { ...DEFAULT_MAHJONG_RULES },
-    }
-  } catch (err) {
-    console.warn('Failed to load state, using default', err)
-    return createDefaultState()
-  }
-}
-const ensureLength = (arr, target, fill = 0) => {
-  const next = arr.slice(0, target)
-  if (next.length < target) {
-    const make = typeof fill === 'object' && fill !== null ? () => ({ ...fill }) : () => fill
-    for (let i = next.length; i < target; i += 1) {
-      next.push(make())
-    }
-  }
-  return next
-}
-
-const csvEscape = (value) => `"${String(value).replace(/"/g, '""')}"`
-
-const splitCsvLine = (line) => {
-  const out = []
-  let current = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-      continue
-    }
-    if (ch === ',' && !inQuotes) {
-      out.push(current)
-      current = ''
-      continue
-    }
-    current += ch
-  }
-  out.push(current)
-  return out
-}
-
-const formatTimestamp = () => {
-  const d = new Date()
-  const pad = (n) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
-}
-
-const parseDateFromFilename = (name = '') => {
-  // Match patterns like scores-YYYYMMDD-HHMM, scores_all_YYYYMMDD-HHMM.csv, or any prefix containing the timestamp.
-  const match = name.match(/(\d{4})\D?(\d{2})\D?(\d{2})\D?(\d{2})(\d{2})/)
-  if (!match) return null
-  const [, y, m, d, hh, mm] = match
-  const year = Number.parseInt(y, 10)
-  const month = Number.parseInt(m, 10) - 1
-  const day = Number.parseInt(d, 10)
-  const hour = Number.parseInt(hh, 10)
-  const minute = Number.parseInt(mm, 10)
-  const result = new Date(year, month, day, hour, minute)
-  return Number.isNaN(result.getTime()) ? null : result.getTime()
-}
-
-const parseImportedCsvV1 = (text) => {
-  const lines = text
-    .replace(/^\ufeff/, '')
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-  if (lines.length < 2) {
-    throw new Error('文件内容为空或格式不正确')
-  }
-
-  const header = splitCsvLine(lines[1])
-  if (header[0]?.toLowerCase() !== 'round') {
-    throw new Error('缺少 Round 表头')
-  }
-  const playerCount = (header.length - 1) / 2
-  if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
-    throw new Error('玩家数量不合法或超出范围')
-  }
-  const players = header.slice(1, 1 + playerCount)
-
-  const totalRowIdx = lines.findIndex((line) => {
-    const cells = splitCsvLine(line)
-    return cells[0]?.toLowerCase() === 'total'
-  })
-
-  const dataLines = lines.slice(2, totalRowIdx === -1 ? undefined : totalRowIdx)
-  const rounds = dataLines.map((line, idx) => {
-    const cells = splitCsvLine(line)
-    const scores = cells.slice(1, 1 + playerCount).map(clampInt)
-    return { id: idx + 1, scores }
-  })
-
-  return { players, rounds }
-}
-
-const parseSessionsFromCsv = (text) => {
-  const rawLines = text.replace(/^\ufeff/, '').split(/\r?\n/)
-  if (!rawLines.some((l) => l.trim())) {
-    throw new Error('文件内容为空或格式不正确')
-  }
-  const lines = rawLines.map((l) => l.trim())
-
-  let idx = 0
-
-  // skip leading empty
-  while (idx < lines.length && lines[idx] === '') idx += 1
-
-  // optional Generated At row
-  if (idx < lines.length) {
-    const cells = splitCsvLine(lines[idx])
-    if (cells[0]?.toLowerCase() === 'generated at') {
-      idx += 1
-    }
-  }
-
-  let version = null
-  if (idx < lines.length) {
-    const cells = splitCsvLine(lines[idx])
-    if (cells[0]?.toLowerCase() === 'version') {
-      version = cells[1]
-      idx += 1
-    }
-  }
-
-  // fallback to v1
-  if (version !== '2') {
-    const single = parseImportedCsvV1(text)
-    const session = createSession({ id: 1, name: '会话 1', players: single.players, rounds: single.rounds, nextRoundId: single.rounds.length + 1 })
-    return [session]
-  }
-
-  const sessions = []
-
-  while (idx < lines.length) {
-    while (idx < lines.length && lines[idx] === '') idx += 1
-    if (idx >= lines.length) break
-
-    const sessionRow = splitCsvLine(lines[idx])
-    if (sessionRow[0]?.toLowerCase() !== 'session') {
-      throw new Error('缺少 Session 行')
-    }
-    const sessionId = Number.parseInt(sessionRow[1], 10)
-    const sessionName = sessionRow[2] || `会话 ${sessionId || sessions.length + 1}`
-    const createdAtCellIndex = sessionRow.findIndex((c) => c?.toLowerCase() === 'createdat')
-    const createdAt = createdAtCellIndex !== -1 ? Date.parse(sessionRow[createdAtCellIndex + 1] ?? '') || Date.now() : Date.now()
-    idx += 1
-
-    while (idx < lines.length && lines[idx] === '') idx += 1
-    if (idx >= lines.length) break
-
-    const playersRow = splitCsvLine(lines[idx])
-    if (playersRow[0]?.toLowerCase() !== 'players') {
-      throw new Error('缺少 Players 行')
-    }
-    const players = playersRow.slice(1).filter(Boolean)
-    if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
-      throw new Error('玩家数量不合法或超出范围')
-    }
-    idx += 1
-
-    while (idx < lines.length && lines[idx] === '') idx += 1
-    if (idx >= lines.length) break
-
-    const headerRow = splitCsvLine(lines[idx])
-    if (headerRow[0]?.toLowerCase() !== 'round') {
-      throw new Error('缺少 Round 表头')
-    }
-    idx += 1
-
-    const rounds = []
-    while (idx < lines.length) {
-      const row = lines[idx]
-      idx += 1
-      if (!row) continue
-      const cells = splitCsvLine(row)
-      const marker = cells[0]?.toLowerCase()
-      if (marker === 'total') {
-        break
-      }
-      const scores = cells.slice(1, 1 + players.length).map(clampInt)
-      rounds.push({ id: rounds.length + 1, scores })
-    }
-
-    const session = createSession({ id: Number.isFinite(sessionId) ? sessionId : sessions.length + 1, name: sessionName, players, rounds, nextRoundId: rounds.length + 1, targetRounds: '' })
-    sessions.push(session)
-  }
-
-  if (sessions.length === 0) {
-    throw new Error('未找到会话数据')
-  }
-
-  return sessions
-}
 
 function App() {
   const [state, setState] = useState(loadInitialState)
@@ -567,38 +257,13 @@ function App() {
     }))
   }
 
-  const computeMahjongScores = () => {
-    const len = players.length
-    const scores = Array(len).fill(0)
-    const rules = state.mahjongRules || DEFAULT_MAHJONG_RULES
-
-    if (winnerDraft !== null && winnerDraft >= 0 && winnerDraft < len) {
-      const hu = clampInt(rules.huPerLoser ?? DEFAULT_MAHJONG_RULES.huPerLoser)
-      scores[winnerDraft] += hu * (len - 1)
-      for (let i = 0; i < len; i += 1) {
-        if (i === winnerDraft) continue
-        scores[i] -= hu
-      }
-    }
-
-    gangDraft.forEach((g, idx) => {
-      if (!g || g.type === 'none') return
-      if (g.type === 'an') {
-        const gain = clampInt(rules.anGangPerLoser ?? DEFAULT_MAHJONG_RULES.anGangPerLoser)
-        scores[idx] += gain * (len - 1)
-        for (let i = 0; i < len; i += 1) {
-          if (i === idx) continue
-          scores[i] -= gain
-        }
-      } else if (g.type === 'dian' && Number.isInteger(g.target) && g.target !== idx && g.target >= 0 && g.target < len) {
-        const gain = clampInt(rules.dianGangAmount ?? DEFAULT_MAHJONG_RULES.dianGangAmount)
-        scores[idx] += gain
-        scores[g.target] -= gain
-      }
+  const computeMahjongScoresForDraft = () =>
+    computeMahjongScores({
+      playersCount: players.length,
+      winnerIndex: winnerDraft,
+      gangDraft,
+      rules: state.mahjongRules,
     })
-
-    return scores
-  }
 
   const updateNewRoundScore = (playerIndex, value) => {
     setNewRoundScores((prev) => prev.map((s, i) => (i === playerIndex ? value : s)))
@@ -618,7 +283,7 @@ function App() {
 
   const submitNewRound = () => {
     if (state.scoringMode === 'mahjong') {
-      const scores = computeMahjongScores()
+      const scores = computeMahjongScoresForDraft()
       addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft })
       setWinnerDraft(null)
       setGangDraft(createEmptyGangDraft(players.length))
@@ -722,18 +387,6 @@ function App() {
     })
     return names
   }, [state.sessions])
-
-  const deriveRoundWinners = (round) => {
-    if (Number.isInteger(round?.winner)) return [round.winner]
-    const scores = Array.isArray(round?.scores) ? round.scores.map(clampInt) : []
-    if (scores.length === 0) return []
-    const max = Math.max(...scores)
-    if (!Number.isFinite(max) || max <= 0) return []
-    return scores.reduce((acc, v, idx) => {
-      if (v === max) acc.push(idx)
-      return acc
-    }, [])
-  }
 
   const sessionSummaries = useMemo(() => {
     return state.sessions.map((session) => {
@@ -844,7 +497,7 @@ function App() {
 
   const mahjongPreviewScores = useMemo(() => {
     if (state.scoringMode !== 'mahjong') return []
-    return computeMahjongScores()
+    return computeMahjongScoresForDraft()
   }, [state.scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length])
 
   const currentMahjongStats = useMemo(() => {

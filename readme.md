@@ -52,6 +52,14 @@ npm run test:run
 - 测试：Vitest + Testing Library
 - 状态：组件内 useState + useMemo；localStorage 持久化
 
+## 代码结构
+- [src/App.jsx](src/App.jsx)：主页面与交互逻辑（会话切换、录入、图表、跨会话总览）。
+- [src/lib/constants.js](src/lib/constants.js)：全局常量与默认配置（玩家上限、存储键、麻将默认规则等）。
+- [src/lib/helpers.js](src/lib/helpers.js)：基础工具函数（整数规范、数组补全、时间戳格式化、文件名解析）。
+- [src/lib/mahjong.js](src/lib/mahjong.js)：麻将相关纯函数（杠草稿生成、胡/杠计分、胜者推导）。
+- [src/lib/csv.js](src/lib/csv.js)：CSV 解析与转义辅助。
+- [src/lib/sessions.js](src/lib/sessions.js)：会话模型创建、初始化加载、会话级 CSV 解析。
+
 ## 待办
 - 已完成：
   - 扩展为多会话数据模型，支持会话切换/新建/删除/重命名，旧版数据自动生成默认会话，撤销/重做按会话独立历史。
