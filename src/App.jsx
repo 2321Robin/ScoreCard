@@ -13,6 +13,8 @@ function App() {
   const [newRoundScores, setNewRoundScores] = useState([])
   const [editingRoundId, setEditingRoundId] = useState(null)
   const [editScores, setEditScores] = useState([])
+  const [editWinnerDraft, setEditWinnerDraft] = useState(null)
+  const [editGangDraft, setEditGangDraft] = useState([])
   const [showChart, setShowChart] = useState(true)
   const [showCrossChart, setShowCrossChart] = useState(true)
   const [winnerDraft, setWinnerDraft] = useState(null)
@@ -63,6 +65,8 @@ function App() {
     setNewRoundScores(Array(players.length).fill(''))
     setEditingRoundId(null)
     setEditScores([])
+    setEditWinnerDraft(null)
+    setEditGangDraft([])
     setWinnerDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
     setSessionNameDraft(currentSession?.name ?? '')
@@ -74,6 +78,7 @@ function App() {
       setEditScores((prev) => ensureLength(prev, players.length, ''))
     }
     setGangDraft((prev) => ensureLength(prev, players.length, { type: 'none', target: null }))
+    setEditGangDraft((prev) => ensureLength(prev, players.length, { type: 'none', target: null }))
   }, [players.length, editingRoundId])
 
   useEffect(() => {
@@ -331,11 +336,15 @@ function App() {
   const startEdit = (round) => {
     setEditingRoundId(round.id)
     setEditScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
+    setEditWinnerDraft(Number.isInteger(round.winner) ? round.winner : null)
+    setEditGangDraft(ensureLength(round.gangs ?? [], players.length, { type: 'none', target: null }))
   }
 
   const cancelEdit = () => {
     setEditingRoundId(null)
     setEditScores([])
+    setEditWinnerDraft(null)
+    setEditGangDraft([])
   }
 
   const updateEditScore = (playerIndex, value) => {
@@ -356,11 +365,27 @@ function App() {
 
   const saveEdit = () => {
     if (editingRoundId === null) return
-    const normalized = ensureLength(editScores, players.length, '').map(clampInt)
-    updateCurrentSessionState((prev) => {
-      const nextRounds = prev.rounds.map((r) => (r.id === editingRoundId ? { ...r, scores: normalized } : r))
-      return { ...prev, rounds: nextRounds }
-    })
+    if (state.scoringMode === 'mahjong') {
+      const normalizedGangs = ensureLength(editGangDraft, players.length, { type: 'none', target: null })
+      const scores = computeMahjongScores({
+        playersCount: players.length,
+        winnerIndex: editWinnerDraft,
+        gangDraft: normalizedGangs,
+        rules: state.mahjongRules,
+      })
+      updateCurrentSessionState((prev) => {
+        const nextRounds = prev.rounds.map((r) =>
+          r.id === editingRoundId ? { ...r, scores, winner: editWinnerDraft, gangs: normalizedGangs } : r,
+        )
+        return { ...prev, rounds: nextRounds }
+      })
+    } else {
+      const normalized = ensureLength(editScores, players.length, '').map(clampInt)
+      updateCurrentSessionState((prev) => {
+        const nextRounds = prev.rounds.map((r) => (r.id === editingRoundId ? { ...r, scores: normalized } : r))
+        return { ...prev, rounds: nextRounds }
+      })
+    }
     cancelEdit()
   }
 
@@ -862,14 +887,23 @@ function App() {
               </div>
 
               {rounds.map((round, rowIndex) => {
+                const isEditing = editingRoundId === round.id
+                const editingMahjong = isEditing && state.scoringMode === 'mahjong'
+                const mahjongEditScores = editingMahjong
+                  ? computeMahjongScores({
+                      playersCount: players.length,
+                      winnerIndex: editWinnerDraft,
+                      gangDraft: ensureLength(editGangDraft, players.length, { type: 'none', target: null }),
+                      rules: state.mahjongRules,
+                    })
+                  : null
                 const currentScores = ensureLength(
-                  editingRoundId === round.id ? editScores : round.scores,
+                  editingMahjong ? mahjongEditScores : isEditing ? editScores : round.scores,
                   players.length,
                   '',
                 )
                 const sum = currentScores.reduce((acc, v) => acc + clampInt(v), 0)
                 const invalid = sum !== 0
-                const isEditing = editingRoundId === round.id
 
                 return (
                   <div
@@ -891,7 +925,12 @@ function App() {
                                 className="rounded-lg border border-line bg-panel p-3 text-center"
                                 role="cell"
                               >
-                                {isEditing ? (
+                                {editingMahjong ? (
+                                  <div className="flex flex-col items-center justify-center gap-1 text-sm text-muted" aria-label={`${name} 当前计算分值 ${valueNumber}`}>
+                                    <div className="text-lg font-semibold text-text">{valueNumber}</div>
+                                    <div className="text-xs">由胡/杠自动计算</div>
+                                  </div>
+                                ) : isEditing ? (
                                   <div className="flex flex-col gap-2 text-sm text-muted">
                                     <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
                                       {`第 ${rowIndex + 1} 局，玩家 ${name} 分值`}
@@ -931,6 +970,86 @@ function App() {
                             )
                           })}
                         </div>
+                        {editingMahjong && (
+                          <div className="space-y-3 rounded-lg border border-line bg-panel p-3 text-sm text-muted">
+                            <div className="text-text font-medium">编辑麻将结果（保存后自动重新计算分数）</div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                              <label className="flex flex-col gap-1">
+                                <span>胡牌者</span>
+                                <select
+                                  className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                                  value={editWinnerDraft ?? ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                    setEditWinnerDraft(Number.isFinite(v) ? v : null)
+                                  }}
+                                >
+                                  <option value="">无</option>
+                                  {players.map((name, idx) => (
+                                    <option key={name} value={idx}>
+                                      {name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <div className="text-xs leading-5 text-muted">
+                                修改胡/杠信息会即时更新上方分数预览，确保仍保持和为 0。
+                              </div>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                              {players.map((name, idx) => (
+                                <div key={name} className="rounded-md border border-line bg-panel p-3">
+                                  <div className="font-medium text-text">{name}</div>
+                                  <label className="mt-2 flex flex-col gap-1">
+                                    <span className="text-xs text-muted">杠类型</span>
+                                    <select
+                                      className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                      value={editGangDraft[idx]?.type ?? 'none'}
+                                      onChange={(e) => {
+                                        const type = e.target.value
+                                        setEditGangDraft((prev) => {
+                                          const next = ensureLength(prev, players.length, { type: 'none', target: null })
+                                          next[idx] = { type, target: type === 'dian' ? next[idx]?.target ?? 0 : null }
+                                          return [...next]
+                                        })
+                                      }}
+                                    >
+                                      <option value="none">无</option>
+                                      <option value="an">暗杠</option>
+                                      <option value="dian">点杠</option>
+                                    </select>
+                                  </label>
+                                  {editGangDraft[idx]?.type === 'dian' && (
+                                    <label className="mt-2 flex flex-col gap-1">
+                                      <span className="text-xs text-muted">点谁</span>
+                                      <select
+                                        className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                        value={editGangDraft[idx]?.target ?? ''}
+                                        onChange={(e) => {
+                                          const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                          setEditGangDraft((prev) => {
+                                            const next = ensureLength(prev, players.length, { type: 'none', target: null })
+                                            next[idx] = { ...next[idx], target: Number.isFinite(target) ? target : null }
+                                            return [...next]
+                                          })
+                                        }}
+                                      >
+                                        <option value="">选择被点玩家</option>
+                                        {players.map((p, pi) =>
+                                          pi === idx ? null : (
+                                            <option key={p} value={pi}>
+                                              {p}
+                                            </option>
+                                          )
+                                        )}
+                                      </select>
+                                    </label>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
                           {state.scoringMode === 'mahjong' && !isEditing && (
@@ -958,13 +1077,15 @@ function App() {
                       <div className="w-40 flex-shrink-0 space-y-2 text-right text-xs">
                         {isEditing ? (
                           <>
-                            <button
-                              className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                              aria-label={`自动平衡第 ${rowIndex + 1} 局`}
-                              onClick={autoBalanceEdit}
-                            >
-                              自动平衡
-                            </button>
+                            {state.scoringMode === 'standard' && (
+                              <button
+                                className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                                aria-label={`自动平衡第 ${rowIndex + 1} 局`}
+                                onClick={autoBalanceEdit}
+                              >
+                                自动平衡
+                              </button>
+                            )}
                             <button
                               className="w-full rounded-md border border-accent bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                               aria-label={`保存第 ${rowIndex + 1} 局`}
