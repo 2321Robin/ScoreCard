@@ -38,6 +38,7 @@ function App() {
   const players = currentSession?.players ?? []
   const rounds = currentSession?.rounds ?? []
   const targetRounds = currentSession?.targetRounds ?? ''
+  const scoringMode = currentSession?.scoringMode || 'standard'
 
   const scoreOptions = useMemo(() => {
     const options = []
@@ -287,7 +288,7 @@ function App() {
   }
 
   const submitNewRound = () => {
-    if (state.scoringMode === 'mahjong') {
+    if (scoringMode === 'mahjong') {
       const scores = computeMahjongScoresForDraft()
       addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft })
       setWinnerDraft(null)
@@ -365,7 +366,7 @@ function App() {
 
   const saveEdit = () => {
     if (editingRoundId === null) return
-    if (state.scoringMode === 'mahjong') {
+    if (scoringMode === 'mahjong') {
       const normalizedGangs = ensureLength(editGangDraft, players.length, { type: 'none', target: null })
       const scores = computeMahjongScores({
         playersCount: players.length,
@@ -521,9 +522,9 @@ function App() {
   }, [players, rounds])
 
   const mahjongPreviewScores = useMemo(() => {
-    if (state.scoringMode !== 'mahjong') return []
+    if (scoringMode !== 'mahjong') return []
     return computeMahjongScoresForDraft()
-  }, [state.scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length])
+  }, [scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length])
 
   const currentMahjongStats = useMemo(() => {
     const wins = Array(players.length).fill(0)
@@ -759,8 +760,8 @@ function App() {
               <span>模式</span>
               <select
                 className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                value={state.scoringMode || 'standard'}
-                onChange={(e) => setState((current) => ({ ...current, scoringMode: e.target.value }))}
+                value={scoringMode}
+                onChange={(e) => updateCurrentSessionState((prev) => ({ ...prev, scoringMode: e.target.value }))}
               >
                 <option value="standard">积分模式</option>
                 <option value="mahjong">麻将模式</option>
@@ -888,7 +889,7 @@ function App() {
 
               {rounds.map((round, rowIndex) => {
                 const isEditing = editingRoundId === round.id
-                const editingMahjong = isEditing && state.scoringMode === 'mahjong'
+                const editingMahjong = isEditing && scoringMode === 'mahjong'
                 const mahjongEditScores = editingMahjong
                   ? computeMahjongScores({
                       playersCount: players.length,
@@ -1052,7 +1053,7 @@ function App() {
                         )}
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
-                          {state.scoringMode === 'mahjong' && !isEditing && (
+                          {scoringMode === 'mahjong' && !isEditing && (
                             <>
                               <span className="rounded-full bg-panel px-2 py-1">胡：{Number.isInteger(round.winner) ? players[round.winner] || '—' : '无'}</span>
                               <span className="rounded-full bg-panel px-2 py-1">
@@ -1077,7 +1078,7 @@ function App() {
                       <div className="w-40 flex-shrink-0 space-y-2 text-right text-xs">
                         {isEditing ? (
                           <>
-                            {state.scoringMode === 'standard' && (
+                            {scoringMode === 'standard' && (
                               <button
                                 className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                                 aria-label={`自动平衡第 ${rowIndex + 1} 局`}
@@ -1134,7 +1135,7 @@ function App() {
               <h2 className="text-lg font-semibold">新增一局</h2>
               <p className="text-sm text-muted">在此填写分值并添加；如需调整已存在的记录，请在下方列表中点击编辑。</p>
             </div>
-            {state.scoringMode === 'standard' ? (
+            {scoringMode === 'standard' ? (
               <div className="flex flex-col gap-2 text-sm sm:items-end">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted">分值范围</span>
@@ -1221,7 +1222,7 @@ function App() {
             )}
           </div>
 
-          {state.scoringMode === 'standard' ? (
+            {scoringMode === 'standard' ? (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {players.map((name, idx) => (
                 <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
@@ -1366,10 +1367,10 @@ function App() {
                       {leading && <span className="text-accent">领先</span>}
                     </div>
                     <div className="mt-1 text-2xl font-semibold">{score}</div>
-                    {state.scoringMode === 'mahjong' && (currentMahjongStats.huCounts[idx] > 0 || currentMahjongStats.gangCounts[idx] > 0) && (
+                    {scoringMode === 'mahjong' && (currentMahjongStats.huCounts[idx] > 0 || currentMahjongStats.gangCounts[idx] > 0) && (
                       <div className="mt-1 text-xs text-muted">胡 {currentMahjongStats.huCounts[idx]} · 杠 {currentMahjongStats.gangCounts[idx]}</div>
                     )}
-                    {state.scoringMode === 'standard' && wins > 0 && (
+                    {scoringMode === 'standard' && wins > 0 && (
                       <div className="mt-1 text-xs text-muted">赢 {wins} 局</div>
                     )}
                   </div>

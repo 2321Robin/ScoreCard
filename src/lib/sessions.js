@@ -3,7 +3,15 @@ import { clampInt, ensureLength } from './helpers'
 import { createEmptyGangDraft } from './mahjong'
 import { parseImportedCsvV1, splitCsvLine } from './csv'
 
-export const createSession = ({ id, name, players = defaultPlayers, rounds = [], nextRoundId = 1, targetRounds = '' }) => {
+export const createSession = ({
+  id,
+  name,
+  players = defaultPlayers,
+  rounds = [],
+  nextRoundId = 1,
+  targetRounds = '',
+  scoringMode = 'standard',
+}) => {
   const safePlayers = Array.isArray(players) && players.length >= MIN_PLAYERS ? players.slice(0, MAX_PLAYERS) : defaultPlayers
 
   const normalizedRounds = Array.isArray(rounds)
@@ -35,6 +43,7 @@ export const createSession = ({ id, name, players = defaultPlayers, rounds = [],
     rounds: normalizedRounds,
     nextRoundId: typeof nextRoundId === 'number' && nextRoundId > maxId ? nextRoundId : maxId + 1,
     targetRounds: typeof targetRounds === 'number' || typeof targetRounds === 'string' ? targetRounds : '',
+    scoringMode: scoringMode === 'mahjong' ? 'mahjong' : 'standard',
     createdAt: Date.now(),
   }
 }
@@ -44,7 +53,6 @@ const createDefaultState = () => {
   return {
     sessions: [firstSession],
     currentSessionId: firstSession.id,
-    scoringMode: 'standard',
     mahjongRules: { ...DEFAULT_MAHJONG_RULES },
   }
 }
@@ -67,6 +75,7 @@ export function loadInitialState() {
             rounds: s.rounds,
             nextRoundId: s.nextRoundId,
             targetRounds: s.targetRounds,
+            scoringMode: s.scoringMode || parsed.scoringMode || 'standard',
           }),
         )
         .slice(0, 50)
@@ -82,7 +91,6 @@ export function loadInitialState() {
       return {
         sessions,
         currentSessionId,
-        scoringMode: parsed.scoringMode || 'standard',
         mahjongRules: parsed.mahjongRules || { ...DEFAULT_MAHJONG_RULES },
       }
     }
@@ -99,7 +107,6 @@ export function loadInitialState() {
     return {
       sessions: [sessionFromV1],
       currentSessionId: 1,
-      scoringMode: 'standard',
       mahjongRules: { ...DEFAULT_MAHJONG_RULES },
     }
   } catch (err) {
