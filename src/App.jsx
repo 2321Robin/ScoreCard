@@ -1353,6 +1353,7 @@ function App() {
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {players.map((name, idx) => {
                 const score = totals[idx]
+                const wins = currentMahjongStats.wins[idx] ?? 0
                 const leading = score === leader && totals.some((t) => t !== leader)
                 return (
                   <div
@@ -1367,6 +1368,9 @@ function App() {
                     <div className="mt-1 text-2xl font-semibold">{score}</div>
                     {state.scoringMode === 'mahjong' && (currentMahjongStats.huCounts[idx] > 0 || currentMahjongStats.gangCounts[idx] > 0) && (
                       <div className="mt-1 text-xs text-muted">胡 {currentMahjongStats.huCounts[idx]} · 杠 {currentMahjongStats.gangCounts[idx]}</div>
+                    )}
+                    {state.scoringMode === 'standard' && wins > 0 && (
+                      <div className="mt-1 text-xs text-muted">赢 {wins} 局</div>
                     )}
                   </div>
                 )
