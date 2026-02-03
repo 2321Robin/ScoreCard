@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_MAHJONG_RULES, MAX_HISTORY, MAX_PLAYERS, MIN_PLAYERS, STORAGE_KEY, defaultPlayers } from './lib/constants'
 import { clampInt, ensureLength, formatTimestamp, parseDateFromFilename } from './lib/helpers'
-import { computeMahjongScores, createEmptyGangDraft, deriveRoundWinners } from './lib/mahjong'
+import { computeMahjongScores, createEmptyGangDraft, deriveRoundWinners, normalizeGangs } from './lib/mahjong'
 import { csvEscape, splitCsvLine } from './lib/csv'
 import { createSession, loadInitialState, parseSessionsFromCsv } from './lib/sessions'
 
@@ -78,8 +78,8 @@ function App() {
     if (editingRoundId !== null) {
       setEditScores((prev) => ensureLength(prev, players.length, ''))
     }
-    setGangDraft((prev) => ensureLength(prev, players.length, { type: 'none', target: null }))
-    setEditGangDraft((prev) => ensureLength(prev, players.length, { type: 'none', target: null }))
+    setGangDraft((prev) => ensureLength(prev, players.length, []))
+    setEditGangDraft((prev) => ensureLength(prev, players.length, []))
   }, [players.length, editingRoundId])
 
   useEffect(() => {
@@ -234,7 +234,7 @@ function App() {
   const addRoundWithScores = (scores = [], meta = {}) => {
     updateCurrentSessionState((prev) => {
       const padded = ensureLength(scores, prev.players.length, '').map(clampInt)
-      const gangs = ensureLength(meta.gangs ?? [], prev.players.length, { type: 'none', target: null })
+      const gangs = normalizeGangs(meta.gangs ?? [], prev.players.length)
       const round = {
         id: prev.nextRoundId,
         scores: padded,
@@ -338,7 +338,7 @@ function App() {
     setEditingRoundId(round.id)
     setEditScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
     setEditWinnerDraft(Number.isInteger(round.winner) ? round.winner : null)
-    setEditGangDraft(ensureLength(round.gangs ?? [], players.length, { type: 'none', target: null }))
+    setEditGangDraft(normalizeGangs(round.gangs ?? [], players.length))
   }
 
   const cancelEdit = () => {
@@ -367,7 +367,7 @@ function App() {
   const saveEdit = () => {
     if (editingRoundId === null) return
     if (scoringMode === 'mahjong') {
-      const normalizedGangs = ensureLength(editGangDraft, players.length, { type: 'none', target: null })
+      const normalizedGangs = normalizeGangs(editGangDraft, players.length)
       const scores = computeMahjongScores({
         playersCount: players.length,
         winnerIndex: editWinnerDraft,
@@ -439,9 +439,12 @@ function App() {
 
         if (Array.isArray(round.gangs)) {
           round.gangs.forEach((g, idx) => {
-            if (!g || (g.type !== 'an' && g.type !== 'dian')) return
+            const entries = Array.isArray(g) ? g : g ? [g] : []
             const globalIdx = session.players[idx] ? allPlayers.indexOf(session.players[idx]) : -1
-            if (globalIdx !== -1) gangCounts[globalIdx] += 1
+            entries.forEach((entry) => {
+              if (!entry || (entry.type !== 'an' && entry.type !== 'dian')) return
+              if (globalIdx !== -1) gangCounts[globalIdx] += 1
+            })
           })
         }
       })
@@ -542,8 +545,11 @@ function App() {
       })
       if (Array.isArray(round.gangs)) {
         round.gangs.forEach((g, idx) => {
-          if (!g || (g.type !== 'an' && g.type !== 'dian')) return
-          if (idx >= 0 && idx < players.length) gangCounts[idx] += 1
+          const entries = Array.isArray(g) ? g : g ? [g] : []
+          entries.forEach((entry) => {
+            if (!entry || (entry.type !== 'an' && entry.type !== 'dian')) return
+            if (idx >= 0 && idx < players.length) gangCounts[idx] += 1
+          })
         })
       }
     })
@@ -554,7 +560,7 @@ function App() {
   const leader = Math.max(...totals)
   const exportCurrentCsv = () => {
     const rows = []
-    rows.push(['Generated At', new Date().toISOString()])
+    rows.push(['Generated At', new Date().toISOString(), 'Mode', scoringMode])
     rows.push(['Round', ...players, ...players.map((p) => `${p} 累计总分`)])
 
     let cumulative = Array(players.length).fill(0)
@@ -583,7 +589,15 @@ function App() {
     rows.push(['Version', '2'])
 
     state.sessions.forEach((session) => {
-      rows.push(['Session', session.id, session.name, 'CreatedAt', new Date(session.createdAt || Date.now()).toISOString()])
+      rows.push([
+        'Session',
+        session.id,
+        session.name,
+        'CreatedAt',
+        new Date(session.createdAt || Date.now()).toISOString(),
+        'Mode',
+        session.scoringMode || 'standard',
+      ])
       rows.push(['Players', ...session.players])
       rows.push(['Round', ...session.players, ...session.players.map((p) => `${p} 累计总分`)])
 
@@ -894,7 +908,7 @@ function App() {
                   ? computeMahjongScores({
                       playersCount: players.length,
                       winnerIndex: editWinnerDraft,
-                      gangDraft: ensureLength(editGangDraft, players.length, { type: 'none', target: null }),
+                      gangDraft: normalizeGangs(editGangDraft, players.length),
                       rules: state.mahjongRules,
                     })
                   : null
@@ -998,56 +1012,99 @@ function App() {
                               </div>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                              {players.map((name, idx) => (
-                                <div key={name} className="rounded-md border border-line bg-panel p-3">
-                                  <div className="font-medium text-text">{name}</div>
-                                  <label className="mt-2 flex flex-col gap-1">
-                                    <span className="text-xs text-muted">杠类型</span>
-                                    <select
-                                      className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                                      value={editGangDraft[idx]?.type ?? 'none'}
-                                      onChange={(e) => {
-                                        const type = e.target.value
+                              {players.map((name, idx) => {
+                                const gangs = Array.isArray(editGangDraft[idx]) ? editGangDraft[idx] : []
+                                return (
+                                  <div key={name} className="rounded-md border border-line bg-panel p-3">
+                                    <div className="font-medium text-text">{name}</div>
+                                    {gangs.map((entry, gi) => (
+                                      <div key={gi} className="mt-2 rounded-md border border-line bg-panel p-2">
+                                        <div className="flex items-center justify-between gap-2 text-xs text-muted">
+                                          <span>杠 #{gi + 1}</span>
+                                          <button
+                                            className="text-danger hover:underline"
+                                            onClick={() => {
+                                              setEditGangDraft((prev) => {
+                                                const next = ensureLength(prev, players.length, [])
+                                                const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                                list.splice(gi, 1)
+                                                next[idx] = list
+                                                return [...next]
+                                              })
+                                            }}
+                                            type="button"
+                                          >
+                                            删除
+                                          </button>
+                                        </div>
+                                        <label className="mt-1 flex flex-col gap-1">
+                                          <span className="text-xs text-muted">类型</span>
+                                          <select
+                                            className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                            value={entry?.type ?? 'an'}
+                                            onChange={(e) => {
+                                              const type = e.target.value
+                                              setEditGangDraft((prev) => {
+                                                const next = ensureLength(prev, players.length, [])
+                                                const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                                list[gi] = { type, target: type === 'dian' ? entry?.target ?? 0 : null }
+                                                next[idx] = list
+                                                return [...next]
+                                              })
+                                            }}
+                                          >
+                                            <option value="an">暗杠</option>
+                                            <option value="dian">点杠</option>
+                                          </select>
+                                        </label>
+                                        {entry?.type === 'dian' && (
+                                          <label className="flex flex-col gap-1">
+                                            <span className="text-xs text-muted">点谁</span>
+                                            <select
+                                              className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                              value={entry?.target ?? ''}
+                                              onChange={(e) => {
+                                                const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                                setEditGangDraft((prev) => {
+                                                  const next = ensureLength(prev, players.length, [])
+                                                  const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                                  list[gi] = { ...list[gi], target: Number.isFinite(target) ? target : null }
+                                                  next[idx] = list
+                                                  return [...next]
+                                                })
+                                              }}
+                                            >
+                                              <option value="">选择被点玩家</option>
+                                              {players.map((p, pi) =>
+                                                pi === idx ? null : (
+                                                  <option key={p} value={pi}>
+                                                    {p}
+                                                  </option>
+                                                )
+                                              )}
+                                            </select>
+                                          </label>
+                                        )}
+                                      </div>
+                                    ))}
+                                    <button
+                                      className="mt-2 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                                      type="button"
+                                      onClick={() => {
                                         setEditGangDraft((prev) => {
-                                          const next = ensureLength(prev, players.length, { type: 'none', target: null })
-                                          next[idx] = { type, target: type === 'dian' ? next[idx]?.target ?? 0 : null }
+                                          const next = ensureLength(prev, players.length, [])
+                                          const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                          list.push({ type: 'an', target: null })
+                                          next[idx] = list
                                           return [...next]
                                         })
                                       }}
                                     >
-                                      <option value="none">无</option>
-                                      <option value="an">暗杠</option>
-                                      <option value="dian">点杠</option>
-                                    </select>
-                                  </label>
-                                  {editGangDraft[idx]?.type === 'dian' && (
-                                    <label className="mt-2 flex flex-col gap-1">
-                                      <span className="text-xs text-muted">点谁</span>
-                                      <select
-                                        className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                                        value={editGangDraft[idx]?.target ?? ''}
-                                        onChange={(e) => {
-                                          const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                                          setEditGangDraft((prev) => {
-                                            const next = ensureLength(prev, players.length, { type: 'none', target: null })
-                                            next[idx] = { ...next[idx], target: Number.isFinite(target) ? target : null }
-                                            return [...next]
-                                          })
-                                        }}
-                                      >
-                                        <option value="">选择被点玩家</option>
-                                        {players.map((p, pi) =>
-                                          pi === idx ? null : (
-                                            <option key={p} value={pi}>
-                                              {p}
-                                            </option>
-                                          )
-                                        )}
-                                      </select>
-                                    </label>
-                                  )}
-                                </div>
-                              ))}
+                                      添加杠
+                                    </button>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         )}
@@ -1058,16 +1115,19 @@ function App() {
                               <span className="rounded-full bg-panel px-2 py-1">胡：{Number.isInteger(round.winner) ? players[round.winner] || '—' : '无'}</span>
                               <span className="rounded-full bg-panel px-2 py-1">
                                 杠：
-                                {Array.isArray(round.gangs) && round.gangs.some((g) => g && g.type !== 'none')
-                                  ? round.gangs
-                                      .map((g, idx) => {
-                                        if (!g || g.type === 'none') return null
-                                        if (g.type === 'an') return `${players[idx] || ''} 暗杠`
-                                        if (g.type === 'dian') return `${players[idx] || ''} 点 ${players[g.target] || ''}`
-                                        return null
+                                {Array.isArray(round.gangs)
+                                  ? (() => {
+                                      const desc = []
+                                      round.gangs.forEach((g, idx) => {
+                                        const entries = Array.isArray(g) ? g : g ? [g] : []
+                                        entries.forEach((entry) => {
+                                          if (!entry || entry.type === 'none') return
+                                          if (entry.type === 'an') desc.push(`${players[idx] || ''} 暗杠`)
+                                          if (entry.type === 'dian') desc.push(`${players[idx] || ''} 点 ${players[entry.target] || ''}`)
+                                        })
                                       })
-                                      .filter(Boolean)
-                                      .join('，') || '无'
+                                      return desc.length > 0 ? desc.join('，') : '无'
+                                    })()
                                   : '无'}
                               </span>
                             </>
@@ -1291,58 +1351,101 @@ function App() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {players.map((name, idx) => (
-                  <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
-                    <div className="flex flex-col gap-2 text-sm text-muted">
-                      <span className="font-medium text-text text-center">{name}</span>
-                      <label className="flex flex-col gap-1">
-                        <span>杠类型</span>
-                        <select
-                          className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                          value={gangDraft[idx]?.type ?? 'none'}
-                          onChange={(e) => {
-                            const type = e.target.value
+                {players.map((name, idx) => {
+                  const gangs = Array.isArray(gangDraft[idx]) ? gangDraft[idx] : []
+                  return (
+                    <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
+                      <div className="flex flex-col gap-2 text-sm text-muted">
+                        <span className="font-medium text-text text-center">{name}</span>
+                        {gangs.map((entry, gi) => (
+                          <div key={gi} className="rounded-md border border-line bg-panel p-2">
+                            <div className="flex items-center justify-between gap-2 text-xs text-muted">
+                              <span>杠 #{gi + 1}</span>
+                              <button
+                                className="text-danger hover:underline"
+                                onClick={() => {
+                                  setGangDraft((prev) => {
+                                    const next = ensureLength(prev, players.length, [])
+                                    const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                    list.splice(gi, 1)
+                                    next[idx] = list
+                                    return [...next]
+                                  })
+                                }}
+                                type="button"
+                              >
+                                删除
+                              </button>
+                            </div>
+                            <label className="mt-1 flex flex-col gap-1">
+                              <span>类型</span>
+                              <select
+                                className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                value={entry?.type ?? 'an'}
+                                onChange={(e) => {
+                                  const type = e.target.value
+                                  setGangDraft((prev) => {
+                                    const next = ensureLength(prev, players.length, [])
+                                    const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                    list[gi] = { type, target: type === 'dian' ? entry?.target ?? 0 : null }
+                                    next[idx] = list
+                                    return [...next]
+                                  })
+                                }}
+                              >
+                                <option value="an">暗杠</option>
+                                <option value="dian">点杠</option>
+                              </select>
+                            </label>
+                            {entry?.type === 'dian' && (
+                              <label className="flex flex-col gap-1">
+                                <span>点谁</span>
+                                <select
+                                  className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                  value={entry?.target ?? ''}
+                                  onChange={(e) => {
+                                    const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                    setGangDraft((prev) => {
+                                      const next = ensureLength(prev, players.length, [])
+                                      const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                                      list[gi] = { ...list[gi], target: Number.isFinite(target) ? target : null }
+                                      next[idx] = list
+                                      return [...next]
+                                    })
+                                  }}
+                                >
+                                  <option value="">选择被点玩家</option>
+                                  {players.map((p, pi) => (
+                                    pi === idx ? null : (
+                                      <option key={p} value={pi}>
+                                        {p}
+                                      </option>
+                                    )
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          className="mt-1 rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                          type="button"
+                          onClick={() => {
                             setGangDraft((prev) => {
-                              const next = ensureLength(prev, players.length, { type: 'none', target: null })
-                              next[idx] = { type, target: type === 'dian' ? (next[idx]?.target ?? 0) : null }
+                              const next = ensureLength(prev, players.length, [])
+                              const list = Array.isArray(next[idx]) ? [...next[idx]] : []
+                              list.push({ type: 'an', target: null })
+                              next[idx] = list
                               return [...next]
                             })
                           }}
                         >
-                          <option value="none">无</option>
-                          <option value="an">暗杠</option>
-                          <option value="dian">点杠</option>
-                        </select>
-                      </label>
-                      {gangDraft[idx]?.type === 'dian' && (
-                        <label className="flex flex-col gap-1">
-                          <span>点谁</span>
-                          <select
-                            className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                            value={gangDraft[idx]?.target ?? ''}
-                            onChange={(e) => {
-                              const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                              setGangDraft((prev) => {
-                                const next = ensureLength(prev, players.length, { type: 'none', target: null })
-                                next[idx] = { ...next[idx], target: Number.isFinite(target) ? target : null }
-                                return [...next]
-                              })
-                            }}
-                          >
-                            <option value="">选择被点玩家</option>
-                            {players.map((p, pi) => (
-                              pi === idx ? null : (
-                                <option key={p} value={pi}>
-                                  {p}
-                                </option>
-                              )
-                            ))}
-                          </select>
-                        </label>
-                      )}
+                          添加杠
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

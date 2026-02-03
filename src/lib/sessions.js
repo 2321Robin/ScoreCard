@@ -11,6 +11,7 @@ export const createSession = ({
   nextRoundId = 1,
   targetRounds = '',
   scoringMode = 'standard',
+  createdAt = Date.now(),
 }) => {
   const safePlayers = Array.isArray(players) && players.length >= MIN_PLAYERS ? players.slice(0, MAX_PLAYERS) : defaultPlayers
 
@@ -21,12 +22,22 @@ export const createSession = ({
         const padded = [...scores, ...Array(safePlayers.length - scores.length).fill(0)]
         const gangs = Array.isArray(r.gangs)
           ? ensureLength(
-              r.gangs.map((g) => ({
-                type: g?.type === 'an' || g?.type === 'dian' ? g.type : 'none',
-                target: Number.isInteger(g?.target) ? g.target : null,
-              })),
+              r.gangs.map((g) => {
+                if (Array.isArray(g)) {
+                  return g
+                    .map((item) => ({
+                      type: item?.type === 'an' || item?.type === 'dian' ? item.type : 'none',
+                      target: Number.isInteger(item?.target) ? item.target : null,
+                    }))
+                    .filter((item) => item.type !== 'none')
+                }
+                if (g && (g.type === 'an' || g.type === 'dian')) {
+                  return [{ type: g.type, target: Number.isInteger(g.target) ? g.target : null }]
+                }
+                return []
+              }),
               safePlayers.length,
-              { type: 'none', target: null },
+              [],
             )
           : createEmptyGangDraft(safePlayers.length)
         const winner = Number.isInteger(r.winner) ? r.winner : null
@@ -44,7 +55,7 @@ export const createSession = ({
     nextRoundId: typeof nextRoundId === 'number' && nextRoundId > maxId ? nextRoundId : maxId + 1,
     targetRounds: typeof targetRounds === 'number' || typeof targetRounds === 'string' ? targetRounds : '',
     scoringMode: scoringMode === 'mahjong' ? 'mahjong' : 'standard',
-    createdAt: Date.now(),
+    createdAt: typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : Date.now(),
   }
 }
 
@@ -167,6 +178,8 @@ export const parseSessionsFromCsv = (text) => {
     const sessionName = sessionRow[2] || `会话 ${sessionId || sessions.length + 1}`
     const createdAtCellIndex = sessionRow.findIndex((c) => c?.toLowerCase() === 'createdat')
     const createdAt = createdAtCellIndex !== -1 ? Date.parse(sessionRow[createdAtCellIndex + 1] ?? '') || Date.now() : Date.now()
+    const modeCellIndex = sessionRow.findIndex((c) => c?.toLowerCase() === 'mode')
+    const sessionMode = modeCellIndex !== -1 ? sessionRow[modeCellIndex + 1] || 'standard' : 'standard'
     idx += 1
 
     while (idx < lines.length && lines[idx] === '') idx += 1
@@ -212,8 +225,9 @@ export const parseSessionsFromCsv = (text) => {
       rounds,
       nextRoundId: rounds.length + 1,
       targetRounds: '',
+      scoringMode: sessionMode,
+      createdAt,
     })
-    session.createdAt = createdAt
     sessions.push(session)
   }
 
