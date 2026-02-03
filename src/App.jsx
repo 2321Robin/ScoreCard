@@ -557,6 +557,35 @@ function App() {
     return { wins, huCounts, gangCounts }
   }, [rounds, players.length])
 
+  const computeSessionStats = (session) => {
+    const len = session.players.length
+    const wins = Array(len).fill(0)
+    const huCounts = Array(len).fill(0)
+    const gangCounts = Array(len).fill(0)
+
+    session.rounds.forEach((round) => {
+      const winners = deriveRoundWinners(round)
+      const isMahjongRound = Array.isArray(round.gangs) || Number.isInteger(round.winner)
+      winners.forEach((w) => {
+        if (w >= 0 && w < len) {
+          wins[w] += 1
+          if (isMahjongRound) huCounts[w] += 1
+        }
+      })
+      if (Array.isArray(round.gangs)) {
+        round.gangs.forEach((g, idx) => {
+          const entries = Array.isArray(g) ? g : g ? [g] : []
+          entries.forEach((entry) => {
+            if (!entry || (entry.type !== 'an' && entry.type !== 'dian')) return
+            if (idx >= 0 && idx < len) gangCounts[idx] += 1
+          })
+        })
+      }
+    })
+
+    return { wins, huCounts, gangCounts }
+  }
+
   const leader = Math.max(...totals)
   const exportCurrentCsv = () => {
     const rows = []
@@ -570,7 +599,14 @@ function App() {
       rows.push([idx + 1, ...scores, ...cumulative])
     })
 
-    rows.push(['Total', ...totals, ...totals])
+    const stats = computeSessionStats({ players, rounds })
+    const totalRow = ['Total', ...totals, ...totals]
+    if (scoringMode === 'standard') {
+      totalRow.push('Wins', ...stats.wins)
+    } else {
+      totalRow.push('Hu Count', ...stats.huCounts, 'Gang Count', ...stats.gangCounts)
+    }
+    rows.push(totalRow)
 
     const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\r\n')
     const bom = '\ufeff'
@@ -609,7 +645,14 @@ function App() {
       })
 
       const totalsRow = session.players.map((_, i) => session.rounds.reduce((acc, r) => acc + clampInt(r.scores[i] ?? 0), 0))
-      rows.push(['Total', ...totalsRow, ...totalsRow])
+      const stats = computeSessionStats({ players: session.players, rounds: session.rounds })
+      const row = ['Total', ...totalsRow, ...totalsRow]
+      if ((session.scoringMode || 'standard') === 'standard') {
+        row.push('Wins', ...stats.wins)
+      } else {
+        row.push('Hu Count', ...stats.huCounts, 'Gang Count', ...stats.gangCounts)
+      }
+      rows.push(row)
       rows.push([])
     })
 
