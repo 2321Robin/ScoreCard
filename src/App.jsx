@@ -559,6 +559,14 @@ function App() {
     return { wins, huCounts, gangCounts }
   }, [rounds, players.length])
 
+  const formatLocalDateTime = (ts) => {
+    if (!ts) return ''
+    const d = new Date(ts)
+    if (Number.isNaN(d.getTime())) return ''
+    const pad = (n) => n.toString().padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
+
   const computeSessionStats = (session) => {
     const len = session.players.length
     const wins = Array(len).fill(0)
@@ -598,8 +606,7 @@ function App() {
     rounds.forEach((round, idx) => {
       const scores = round.scores.map((s) => clampInt(s))
       cumulative = cumulative.map((acc, i) => acc + scores[i])
-      const ts = round.timestamp ? new Date(round.timestamp).toISOString() : ''
-      rows.push([idx + 1, ts, ...scores, ...cumulative])
+      rows.push([idx + 1, formatLocalDateTime(round.timestamp), ...scores, ...cumulative])
     })
 
     const stats = computeSessionStats({ players, rounds })
@@ -644,8 +651,7 @@ function App() {
       session.rounds.forEach((round, idx) => {
         const scores = session.players.map((_, i) => clampInt(round.scores[i] ?? 0))
         cumulative = cumulative.map((acc, i) => acc + scores[i])
-        const ts = round.timestamp ? new Date(round.timestamp).toISOString() : ''
-        rows.push([idx + 1, ts, ...scores, ...cumulative])
+        rows.push([idx + 1, formatLocalDateTime(round.timestamp), ...scores, ...cumulative])
       })
 
       const totalsRow = session.players.map((_, i) => session.rounds.reduce((acc, r) => acc + clampInt(r.scores[i] ?? 0), 0))
