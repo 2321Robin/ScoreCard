@@ -235,11 +235,13 @@ function App() {
     updateCurrentSessionState((prev) => {
       const padded = ensureLength(scores, prev.players.length, '').map(clampInt)
       const gangs = normalizeGangs(meta.gangs ?? [], prev.players.length)
+      const timestamp = typeof meta.timestamp === 'number' && Number.isFinite(meta.timestamp) ? meta.timestamp : Date.now()
       const round = {
         id: prev.nextRoundId,
         scores: padded,
         winner: Number.isInteger(meta.winner) ? meta.winner : null,
         gangs,
+        timestamp,
       }
       return {
         ...prev,
@@ -328,7 +330,7 @@ function App() {
     updateCurrentSessionState((prev) => {
       const idx = prev.rounds.findIndex((r) => r.id === id)
       const source = prev.rounds[idx - 1] ?? prev.rounds[idx]
-      const copy = { ...source, id }
+      const copy = { ...source, id, timestamp: Date.now() }
       const nextRounds = prev.rounds.map((r) => (r.id === id ? copy : r))
       return { ...prev, rounds: nextRounds }
     })
@@ -590,17 +592,18 @@ function App() {
   const exportCurrentCsv = () => {
     const rows = []
     rows.push(['Generated At', new Date().toISOString(), 'Mode', scoringMode])
-    rows.push(['Round', ...players, ...players.map((p) => `${p} 累计总分`)])
+    rows.push(['Round', 'Timestamp', ...players, ...players.map((p) => `${p} 累计总分`)])
 
     let cumulative = Array(players.length).fill(0)
     rounds.forEach((round, idx) => {
       const scores = round.scores.map((s) => clampInt(s))
       cumulative = cumulative.map((acc, i) => acc + scores[i])
-      rows.push([idx + 1, ...scores, ...cumulative])
+      const ts = round.timestamp ? new Date(round.timestamp).toISOString() : ''
+      rows.push([idx + 1, ts, ...scores, ...cumulative])
     })
 
     const stats = computeSessionStats({ players, rounds })
-    const totalRow = ['Total', ...totals, ...totals]
+    const totalRow = ['Total', '', ...totals, ...totals]
     if (scoringMode === 'standard') {
       totalRow.push('Wins', ...stats.wins)
     } else {
@@ -635,18 +638,19 @@ function App() {
         session.scoringMode || 'standard',
       ])
       rows.push(['Players', ...session.players])
-      rows.push(['Round', ...session.players, ...session.players.map((p) => `${p} 累计总分`)])
+      rows.push(['Round', 'Timestamp', ...session.players, ...session.players.map((p) => `${p} 累计总分`)])
 
       let cumulative = Array(session.players.length).fill(0)
       session.rounds.forEach((round, idx) => {
         const scores = session.players.map((_, i) => clampInt(round.scores[i] ?? 0))
         cumulative = cumulative.map((acc, i) => acc + scores[i])
-        rows.push([idx + 1, ...scores, ...cumulative])
+        const ts = round.timestamp ? new Date(round.timestamp).toISOString() : ''
+        rows.push([idx + 1, ts, ...scores, ...cumulative])
       })
 
       const totalsRow = session.players.map((_, i) => session.rounds.reduce((acc, r) => acc + clampInt(r.scores[i] ?? 0), 0))
       const stats = computeSessionStats({ players: session.players, rounds: session.rounds })
-      const row = ['Total', ...totalsRow, ...totalsRow]
+      const row = ['Total', '', ...totalsRow, ...totalsRow]
       if ((session.scoringMode || 'standard') === 'standard') {
         row.push('Wins', ...stats.wins)
       } else {

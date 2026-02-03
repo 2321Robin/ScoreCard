@@ -41,7 +41,9 @@ export const createSession = ({
             )
           : createEmptyGangDraft(safePlayers.length)
         const winner = Number.isInteger(r.winner) ? r.winner : null
-        return { id: rid, scores: padded, gangs, winner }
+        const tsRaw = Number.isFinite(r.timestamp) ? r.timestamp : Date.parse(r.timestamp) || null
+        const timestamp = Number.isFinite(tsRaw) ? tsRaw : Date.now()
+        return { id: rid, scores: padded, gangs, winner, timestamp }
       })
     : []
 
@@ -202,6 +204,7 @@ export const parseSessionsFromCsv = (text) => {
     if (headerRow[0]?.toLowerCase() !== 'round') {
       throw new Error('缺少 Round 表头')
     }
+    const hasTimestamp = headerRow[1]?.toLowerCase() === 'timestamp'
     idx += 1
 
     const rounds = []
@@ -214,8 +217,11 @@ export const parseSessionsFromCsv = (text) => {
       if (marker === 'total') {
         break
       }
-      const scores = cells.slice(1, 1 + players.length).map(clampInt)
-      rounds.push({ id: rounds.length + 1, scores })
+      const tsCell = hasTimestamp ? cells[1] : null
+      const scoresStart = hasTimestamp ? 2 : 1
+      const scores = cells.slice(scoresStart, scoresStart + players.length).map(clampInt)
+      const timestamp = hasTimestamp ? Date.parse(tsCell) || Date.now() : Date.now()
+      rounds.push({ id: rounds.length + 1, scores, timestamp })
     }
 
     const session = createSession({
