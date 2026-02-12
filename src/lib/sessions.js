@@ -155,13 +155,87 @@ export const parseSessionsFromCsv = (text) => {
   }
 
   if (version !== '2') {
-    const single = parseImportedCsvV1(text)
+    try {
+      return tryParseSingleFlexible(text)
+    } catch (err) {
+      const single = parseImportedCsvV1(text)
+      const session = createSession({
+        id: 1,
+        name: '会话 1',
+        players: single.players,
+        rounds: single.rounds,
+        nextRoundId: single.rounds.length + 1,
+      })
+      return [session]
+    }
+  }
+
+  const tryParseSingleFlexible = (text) => {
+    const lines = text
+      .replace(/^\ufeff/, '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+    if (lines.length === 0) {
+      throw new Error('文件内容为空或格式不正确')
+    }
+
+    let idx = 0
+    let sessionMode = 'standard'
+    if (idx < lines.length) {
+      const cells = splitCsvLine(lines[idx])
+      if (cells[0]?.toLowerCase() === 'generated at') {
+        const modeIdx = cells.findIndex((c) => c?.toLowerCase() === 'mode')
+        if (modeIdx !== -1 && cells[modeIdx + 1]) {
+          sessionMode = cells[modeIdx + 1]
+        }
+        idx += 1
+      }
+    }
+
+    if (idx >= lines.length) {
+      throw new Error('缺少 Round 表头')
+    }
+
+    const headerRow = splitCsvLine(lines[idx])
+    if (headerRow[0]?.toLowerCase() !== 'round') {
+      throw new Error('缺少 Round 表头')
+    }
+    const hasTimestamp = headerRow[1]?.toLowerCase() === 'timestamp'
+    const scoreStart = hasTimestamp ? 2 : 1
+    const remaining = headerRow.length - scoreStart
+    if (remaining <= 0 || remaining % 2 !== 0) {
+      throw new Error('表头列数量不匹配')
+    }
+    const playerCount = remaining / 2
+    if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
+      throw new Error('玩家数量不合法或超出范围')
+    }
+    const players = headerRow.slice(scoreStart, scoreStart + playerCount)
+    idx += 1
+
+    const rounds = []
+    while (idx < lines.length) {
+      const cells = splitCsvLine(lines[idx])
+      idx += 1
+      const marker = cells[0]?.toLowerCase()
+      if (marker === 'total') break
+      if (!cells[0]) continue
+      const tsCell = hasTimestamp ? cells[1] : null
+      const timestamp = tsCell ? Date.parse(tsCell) || Date.now() : Date.now()
+      const scores = cells.slice(scoreStart, scoreStart + playerCount).map(clampInt)
+      const id = Number.parseInt(cells[0], 10)
+      rounds.push({ id: Number.isFinite(id) ? id : rounds.length + 1, scores, timestamp })
+    }
+
     const session = createSession({
       id: 1,
-      name: '会话 1',
-      players: single.players,
-      rounds: single.rounds,
-      nextRoundId: single.rounds.length + 1,
+      name: '导入会话',
+      players,
+      rounds,
+      nextRoundId: rounds.length + 1,
+      targetRounds: '',
+      scoringMode: sessionMode,
     })
     return [session]
   }
