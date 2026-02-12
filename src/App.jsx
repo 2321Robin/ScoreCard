@@ -393,11 +393,24 @@ function App() {
   }
 
   const clearAll = () => {
-    const ok = window.confirm('确定要清空所有数据吗？此操作不可撤销。')
+    if (!currentSession) return
+    const ok = window.confirm('仅清空当前会话的对局数据（保留玩家、名称、模式与规则），确定吗？')
     if (!ok) return
-    historyRef.current = {}
-    autoExportTriggeredRef.current = {}
-    setState(createDefaultState())
+    historyRef.current = { ...historyRef.current, [currentSession.id]: { past: [], future: [] } }
+    autoExportTriggeredRef.current = { ...autoExportTriggeredRef.current, [currentSession.id]: null }
+    updateCurrentSessionState((prev) => ({
+      ...prev,
+      rounds: [],
+      nextRoundId: 1,
+      targetRounds: '',
+    }))
+    setEditingRoundId(null)
+    setEditScores([])
+    setEditWinnerDraft(null)
+    setEditGangDraft([])
+    setNewRoundScores([])
+    setWinnerDraft(null)
+    setGangDraft(createEmptyGangDraft(players.length))
   }
 
   const totals = useMemo(() => {
