@@ -205,8 +205,15 @@ export const parseSessionsFromCsv = (text) => {
     const scoreStart = hasTimestamp ? 2 : 1
     const labels = headerRow.slice(scoreStart).filter((c) => c !== '')
 
-    const cumulativeIdx = labels.findIndex((c) => /累计/.test(c))
-    const playersPart = cumulativeIdx === -1 ? labels.slice(0, Math.floor(labels.length / 2)) : labels.slice(0, cumulativeIdx)
+    let playersPart = []
+    for (let i = 0; i < labels.length; i += 1) {
+      if (/累计/.test(labels[i])) break
+      playersPart.push(labels[i])
+    }
+    if (playersPart.length === 0) {
+      const half = Math.floor(labels.length / 2)
+      playersPart = labels.slice(0, half)
+    }
     const players = playersPart.slice(0, MAX_PLAYERS)
     const playerCount = players.length
 
