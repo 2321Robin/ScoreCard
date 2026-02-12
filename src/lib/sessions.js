@@ -203,15 +203,16 @@ export const parseSessionsFromCsv = (text) => {
     }
     const hasTimestamp = headerRow[1]?.toLowerCase() === 'timestamp'
     const scoreStart = hasTimestamp ? 2 : 1
-    const remaining = headerRow.length - scoreStart
-    if (remaining <= 0 || remaining % 2 !== 0) {
-      throw new Error('表头列数量不匹配')
-    }
-    const playerCount = remaining / 2
+    const labels = headerRow.slice(scoreStart).filter((c) => c !== '')
+
+    const cumulativeIdx = labels.findIndex((c) => /累计/.test(c))
+    const playersPart = cumulativeIdx === -1 ? labels.slice(0, Math.floor(labels.length / 2)) : labels.slice(0, cumulativeIdx)
+    const players = playersPart.slice(0, MAX_PLAYERS)
+    const playerCount = players.length
+
     if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
       throw new Error('玩家数量不合法或超出范围')
     }
-    const players = headerRow.slice(scoreStart, scoreStart + playerCount)
     idx += 1
 
     const rounds = []
