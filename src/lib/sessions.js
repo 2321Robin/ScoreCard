@@ -21,6 +21,7 @@ export const createSession = ({
         const scores = Array.isArray(r.scores) ? r.scores.slice(0, safePlayers.length) : []
         const padded = [...scores, ...Array(safePlayers.length - scores.length).fill(0)]
             const isMahjongSpecial = Boolean(r.isMahjongSpecial)
+        const specialNote = isMahjongSpecial && typeof r.specialNote === 'string' ? r.specialNote : ''
         const gangs = Array.isArray(r.gangs)
           ? ensureLength(
               r.gangs.map((g) => {
@@ -44,7 +45,7 @@ export const createSession = ({
         const winner = Number.isInteger(r.winner) ? r.winner : null
         const tsRaw = Number.isFinite(r.timestamp) ? r.timestamp : Date.parse(r.timestamp) || null
         const timestamp = Number.isFinite(tsRaw) ? tsRaw : Date.now()
-        return { id: rid, scores: padded, gangs, winner, timestamp, isMahjongSpecial }
+        return { id: rid, scores: padded, gangs, winner, timestamp, isMahjongSpecial, specialNote }
       })
     : []
 

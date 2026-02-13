@@ -13,10 +13,12 @@ function App() {
   const [newRoundScores, setNewRoundScores] = useState([])
   const [mahjongSpecial, setMahjongSpecial] = useState(false)
   const [mahjongSpecialScores, setMahjongSpecialScores] = useState([])
+  const [mahjongSpecialNote, setMahjongSpecialNote] = useState('')
   const [editingRoundId, setEditingRoundId] = useState(null)
   const [editScores, setEditScores] = useState([])
   const [editMahjongSpecial, setEditMahjongSpecial] = useState(false)
   const [editMahjongScores, setEditMahjongScores] = useState([])
+  const [editMahjongSpecialNote, setEditMahjongSpecialNote] = useState('')
   const [editWinnerDraft, setEditWinnerDraft] = useState(null)
   const [editGangDraft, setEditGangDraft] = useState([])
   const [showChart, setShowChart] = useState(true)
@@ -25,6 +27,7 @@ function App() {
   const [gangDraft, setGangDraft] = useState([])
   const [mahjongRulesDraft, setMahjongRulesDraft] = useState({ ...DEFAULT_MAHJONG_RULES })
   const [showCrossOverview, setShowCrossOverview] = useState(true)
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false)
   const [sessionFilterMode, setSessionFilterMode] = useState('all')
   const [selectedSessionIds, setSelectedSessionIds] = useState([])
   const [overviewMetric, setOverviewMetric] = useState('score')
@@ -43,6 +46,17 @@ function App() {
   const rounds = currentSession?.rounds ?? []
   const targetRounds = currentSession?.targetRounds ?? ''
   const scoringMode = currentSession?.scoringMode || 'standard'
+
+  const logicalRoundNumbers = useMemo(() => {
+    let n = 0
+    return rounds.map((r) => {
+      if (!r.isMahjongSpecial) {
+        n += 1
+        return n
+      }
+      return null
+    })
+  }, [rounds])
 
   const scoreOptions = useMemo(() => {
     const options = []
@@ -70,10 +84,12 @@ function App() {
     setNewRoundScores(Array(players.length).fill(''))
     setMahjongSpecial(false)
     setMahjongSpecialScores(Array(players.length).fill(''))
+    setMahjongSpecialNote('')
     setEditingRoundId(null)
     setEditScores([])
     setEditMahjongSpecial(false)
     setEditMahjongScores([])
+    setEditMahjongSpecialNote('')
     setEditWinnerDraft(null)
     setEditGangDraft([])
     setWinnerDraft(null)
@@ -84,10 +100,12 @@ function App() {
   useEffect(() => {
     setNewRoundScores((prev) => ensureLength(prev, players.length, ''))
     setMahjongSpecialScores((prev) => ensureLength(prev, players.length, ''))
+    setMahjongSpecialNote((prev) => prev)
     if (editingRoundId !== null) {
       setEditScores((prev) => ensureLength(prev, players.length, ''))
     }
     setEditMahjongScores((prev) => ensureLength(prev, players.length, ''))
+    setEditMahjongSpecialNote((prev) => prev)
     setGangDraft((prev) => ensureLength(prev, players.length, []))
     setEditGangDraft((prev) => ensureLength(prev, players.length, []))
   }, [players.length, editingRoundId])
@@ -247,6 +265,7 @@ function App() {
       const gangs = normalizeGangs(meta.gangs ?? [], prev.players.length)
       const timestamp = typeof meta.timestamp === 'number' && Number.isFinite(meta.timestamp) ? meta.timestamp : Date.now()
       const isMahjongSpecial = Boolean(meta.isMahjongSpecial)
+      const specialNote = isMahjongSpecial && typeof meta.specialNote === 'string' ? meta.specialNote.trim() : ''
       const round = {
         id: prev.nextRoundId,
         scores: padded,
@@ -254,6 +273,7 @@ function App() {
         gangs,
         timestamp,
         isMahjongSpecial,
+        specialNote,
       }
       return {
         ...prev,
@@ -320,9 +340,15 @@ function App() {
   const submitNewRound = () => {
     if (scoringMode === 'mahjong') {
       if (mahjongSpecial) {
-        addRoundWithScores(mahjongSpecialScores, { winner: winnerDraft, gangs: gangDraft, isMahjongSpecial: true })
+        addRoundWithScores(mahjongSpecialScores, {
+          winner: winnerDraft,
+          gangs: gangDraft,
+          isMahjongSpecial: true,
+          specialNote: mahjongSpecialNote,
+        })
         setMahjongSpecial(false)
         setMahjongSpecialScores(Array(players.length).fill(''))
+        setMahjongSpecialNote('')
       } else {
         const scores = computeMahjongScoresForDraft()
         addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft })
@@ -375,6 +401,7 @@ function App() {
     setEditScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
     setEditMahjongSpecial(Boolean(round.isMahjongSpecial))
     setEditMahjongScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
+    setEditMahjongSpecialNote(round.specialNote || '')
     setEditWinnerDraft(Number.isInteger(round.winner) ? round.winner : null)
     setEditGangDraft(normalizeGangs(round.gangs ?? [], players.length))
   }
@@ -384,6 +411,7 @@ function App() {
     setEditScores([])
     setEditMahjongSpecial(false)
     setEditMahjongScores([])
+    setEditMahjongSpecialNote('')
     setEditWinnerDraft(null)
     setEditGangDraft([])
   }
@@ -429,7 +457,14 @@ function App() {
         updateCurrentSessionState((prev) => {
           const nextRounds = prev.rounds.map((r) =>
             r.id === editingRoundId
-              ? { ...r, scores: normalizedScores, winner: editWinnerDraft, gangs: normalizedGangs, isMahjongSpecial: true }
+              ? {
+                  ...r,
+                  scores: normalizedScores,
+                  winner: editWinnerDraft,
+                  gangs: normalizedGangs,
+                  isMahjongSpecial: true,
+                  specialNote: editMahjongSpecialNote.trim(),
+                }
               : r,
           )
           return { ...prev, rounds: nextRounds }
@@ -443,7 +478,9 @@ function App() {
         })
         updateCurrentSessionState((prev) => {
           const nextRounds = prev.rounds.map((r) =>
-            r.id === editingRoundId ? { ...r, scores, winner: editWinnerDraft, gangs: normalizedGangs, isMahjongSpecial: false } : r,
+              r.id === editingRoundId
+                ? { ...r, scores, winner: editWinnerDraft, gangs: normalizedGangs, isMahjongSpecial: false, specialNote: '' }
+                : r,
           )
           return { ...prev, rounds: nextRounds }
         })
@@ -474,11 +511,13 @@ function App() {
     setEditScores([])
     setEditMahjongSpecial(false)
     setEditMahjongScores([])
+    setEditMahjongSpecialNote('')
     setEditWinnerDraft(null)
     setEditGangDraft([])
     setNewRoundScores([])
     setMahjongSpecial(false)
     setMahjongSpecialScores([])
+    setMahjongSpecialNote('')
     setWinnerDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
   }
@@ -600,12 +639,24 @@ function App() {
     const series = players.map(() => [{ round: 0, value: 0 }])
     const running = Array(players.length).fill(0)
 
-    rounds.forEach((round, idx) => {
+    let logicalRound = 0
+    rounds.forEach((round) => {
       round.scores.forEach((s, i) => {
         running[i] += clampInt(s)
-        series[i].push({ round: idx + 1, value: running[i] })
       })
+      if (!round.isMahjongSpecial) {
+        logicalRound += 1
+        series.forEach((list, i) => {
+          list.push({ round: logicalRound, value: running[i] })
+        })
+      }
     })
+
+    if (logicalRound === 0 && rounds.length > 0) {
+      series.forEach((list, i) => {
+        list.push({ round: 1, value: running[i] })
+      })
+    }
     return series
   }, [players, rounds])
 
@@ -848,7 +899,21 @@ function App() {
               <p className="text-xs uppercase tracking-[0.2em] text-muted">Score Tracker</p>
               <h1 className="text-xl font-semibold">打牌积分表单</h1>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm">
+            <button
+              className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel md:hidden"
+              onClick={() => setIsHeaderMenuOpen((v) => !v)}
+              aria-expanded={isHeaderMenuOpen}
+              aria-controls="top-menu-panel"
+            >
+              {isHeaderMenuOpen ? '收起菜单' : '展开菜单'}
+            </button>
+          </div>
+
+          <div
+            id="top-menu-panel"
+            className={`${isHeaderMenuOpen ? 'flex' : 'hidden'} flex-col gap-3 text-sm md:flex`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
                 <span>会话</span>
                 <select
@@ -890,91 +955,91 @@ function App() {
                 </button>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
-              <span>目标局数</span>
-              <input
-                type="number"
-                className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                value={targetDraft}
-                onChange={(e) => setTargetDraft(e.target.value)}
-                aria-label="设定目标局数"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
+                <span>目标局数</span>
+                <input
+                  type="number"
+                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                  value={targetDraft}
+                  onChange={(e) => setTargetDraft(e.target.value)}
+                  aria-label="设定目标局数"
+                />
+                <button
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={applyTargetRounds}
+                >
+                  设定
+                </button>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
+                <span>模式</span>
+                <select
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                  value={scoringMode}
+                  onChange={(e) => updateCurrentSessionState((prev) => ({ ...prev, scoringMode: e.target.value }))}
+                >
+                  <option value="standard">积分模式</option>
+                  <option value="mahjong">麻将模式</option>
+                </select>
+              </div>
               <button
-                className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                onClick={applyTargetRounds}
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={clearAll}
               >
-                设定
+                清空（需确认）
               </button>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
-              <span>模式</span>
-              <select
-                className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                value={scoringMode}
-                onChange={(e) => updateCurrentSessionState((prev) => ({ ...prev, scoringMode: e.target.value }))}
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={undo}
+                disabled={(historyRef.current[state.currentSessionId]?.past ?? []).length === 0}
               >
-                <option value="standard">积分模式</option>
-                <option value="mahjong">麻将模式</option>
-              </select>
+                撤销
+              </button>
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={redo}
+                disabled={(historyRef.current[state.currentSessionId]?.future ?? []).length === 0}
+              >
+                重做
+              </button>
+              <button
+                className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={exportCurrentCsv}
+              >
+                导出当前 CSV
+              </button>
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={exportAllSessionsCsv}
+              >
+                导出全部 CSV
+              </button>
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={triggerImport}
+              >
+                导入 CSV
+              </button>
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                onClick={() => setShowCrossOverview((v) => !v)}
+                aria-expanded={showCrossOverview}
+              >
+                {showCrossOverview ? '隐藏跨会话总览' : '显示跨会话总览'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImportFile(file)
+                }}
+              />
             </div>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={clearAll}
-            >
-              清空（需确认）
-            </button>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={undo}
-              disabled={(historyRef.current[state.currentSessionId]?.past ?? []).length === 0}
-            >
-              撤销
-            </button>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={redo}
-              disabled={(historyRef.current[state.currentSessionId]?.future ?? []).length === 0}
-            >
-              重做
-            </button>
-            <button
-              className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={exportCurrentCsv}
-            >
-              导出当前 CSV
-            </button>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={exportAllSessionsCsv}
-            >
-              导出全部 CSV
-            </button>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={triggerImport}
-            >
-              导入 CSV
-            </button>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              onClick={() => setShowCrossOverview((v) => !v)}
-              aria-expanded={showCrossOverview}
-            >
-              {showCrossOverview ? '隐藏跨会话总览' : '显示跨会话总览'}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) handleImportFile(file)
-              }}
-            />
           </div>
         </div>
       </header>
@@ -1044,6 +1109,8 @@ function App() {
                 const isEditing = editingRoundId === round.id
                 const editingMahjong = isEditing && scoringMode === 'mahjong'
                 const editingMahjongSpecial = editingMahjong && editMahjongSpecial
+                const logicalNumber = logicalRoundNumbers[rowIndex]
+                const rowLabel = logicalNumber ? `第 ${logicalNumber} 局` : '特殊补充局'
                 const mahjongEditScores = editingMahjong
                   ? editingMahjongSpecial
                     ? ensureLength(editMahjongScores, players.length, '')
@@ -1067,10 +1134,10 @@ function App() {
                     key={round.id}
                     className={`border-t border-line px-3 py-3 text-sm ${invalid ? 'bg-red-50 border-red-300' : 'bg-panel'}`}
                     role="row"
-                    aria-label={`第 ${rowIndex + 1} 局，${invalid ? '未平衡' : '已平衡'}`}
+                    aria-label={`${rowLabel}，${invalid ? '未平衡' : '已平衡'}`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-14 flex-shrink-0 pt-1 text-muted">#{rowIndex + 1}</div>
+                      <div className="w-14 flex-shrink-0 pt-1 text-muted">{logicalNumber ? `#${logicalNumber}` : '补充'}</div>
                       <div className="flex-1 space-y-3">
                         <div className="grid gap-3" style={{ gridTemplateColumns: playerGridTemplate }}>
                           {players.map((name, playerIndex) => {
@@ -1086,11 +1153,11 @@ function App() {
                                   editingMahjongSpecial ? (
                                     <div className="flex flex-col gap-2 text-sm text-muted">
                                       <label className="sr-only" htmlFor={`mahjong-score-${round.id}-${playerIndex}`}>
-                                        {`第 ${rowIndex + 1} 局，玩家 ${name} 分值`}
+                                        {`${rowLabel}，玩家 ${name} 分值`}
                                       </label>
                                       <input
                                         id={`mahjong-score-${round.id}-${playerIndex}`}
-                                        aria-label={`第 ${rowIndex + 1} 局，玩家 ${name}`}
+                                        aria-label={`${rowLabel}，玩家 ${name}`}
                                         aria-invalid={invalid}
                                         type="text"
                                         inputMode="numeric"
@@ -1098,21 +1165,6 @@ function App() {
                                         value={valueRaw}
                                         onChange={(e) => updateEditMahjongScore(playerIndex, e.target.value)}
                                       />
-                                      <select
-                                        aria-label={`从下拉选择分值，玩家 ${name}`}
-                                        className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
-                                        value=""
-                                        onChange={(e) => updateEditMahjongScore(playerIndex, e.target.value)}
-                                      >
-                                        <option value="" disabled>
-                                          下拉选择
-                                        </option>
-                                        {scoreOptions.map((opt) => (
-                                          <option key={opt} value={opt}>
-                                            {opt}
-                                          </option>
-                                        ))}
-                                      </select>
                                     </div>
                                   ) : (
                                     <div className="flex flex-col items-center justify-center gap-1 text-sm text-muted" aria-label={`${name} 当前计算分值 ${valueNumber}`}>
@@ -1123,11 +1175,11 @@ function App() {
                                 ) : isEditing ? (
                                   <div className="flex flex-col gap-2 text-sm text-muted">
                                     <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
-                                      {`第 ${rowIndex + 1} 局，玩家 ${name} 分值`}
+                                      {`${rowLabel}，玩家 ${name} 分值`}
                                     </label>
                                     <input
                                       id={`score-${round.id}-${playerIndex}`}
-                                      aria-label={`第 ${rowIndex + 1} 局，玩家 ${name}`}
+                                      aria-label={`${rowLabel}，玩家 ${name}`}
                                       aria-invalid={invalid}
                                       type="text"
                                       inputMode="numeric"
@@ -1176,10 +1228,26 @@ function App() {
                                       const base = ensureLength(mahjongEditScores ?? round.scores, players.length, '')
                                       setEditMahjongScores(base.map((v) => String(clampInt(v))))
                                     }
+                                    if (!checked) {
+                                      setEditMahjongSpecialNote('')
+                                    }
                                   }}
                                 />
                                 <span>特殊局：手动分数，不按胡/杠自动计算</span>
                               </label>
+                              {editMahjongSpecial && (
+                                <label className="flex flex-col gap-1 text-sm text-muted">
+                                  <span>备注（可选）</span>
+                                  <input
+                                    type="text"
+                                    className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                                    value={editMahjongSpecialNote}
+                                    maxLength={80}
+                                    onChange={(e) => setEditMahjongSpecialNote(e.target.value)}
+                                    aria-label="特殊局备注"
+                                  />
+                                </label>
+                              )}
                               <div className="text-xs text-muted">仍可记录胡/杠信息用于统计；未勾选时上方分数将按规则即时计算。</div>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1305,6 +1373,9 @@ function App() {
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
                           {round.isMahjongSpecial && <span className="rounded-full bg-accent/10 px-2 py-1 text-accent">特殊局</span>}
+                          {round.isMahjongSpecial && round.specialNote && (
+                            <span className="rounded-full bg-panel px-2 py-1 text-muted">备注：{round.specialNote}</span>
+                          )}
                           {scoringMode === 'mahjong' && !isEditing && (
                             <>
                               <span className="rounded-full bg-panel px-2 py-1">胡：{Number.isInteger(round.winner) ? players[round.winner] || '—' : '无'}</span>
@@ -1336,7 +1407,7 @@ function App() {
                             {(scoringMode === 'standard' || (scoringMode === 'mahjong' && editMahjongSpecial)) && (
                               <button
                                 className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                                aria-label={`自动平衡第 ${rowIndex + 1} 局`}
+                                aria-label={`自动平衡${rowLabel}`}
                                 onClick={scoringMode === 'mahjong' ? autoBalanceEditMahjong : autoBalanceEdit}
                               >
                                 自动平衡
@@ -1344,14 +1415,14 @@ function App() {
                             )}
                             <button
                               className="w-full rounded-md border border-accent bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                              aria-label={`保存第 ${rowIndex + 1} 局`}
+                              aria-label={`保存${rowLabel}`}
                               onClick={saveEdit}
                             >
                               保存
                             </button>
                             <button
                               className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-                              aria-label={`取消编辑第 ${rowIndex + 1} 局`}
+                              aria-label={`取消编辑${rowLabel}`}
                               onClick={cancelEdit}
                             >
                               取消
@@ -1526,12 +1597,26 @@ function App() {
                         setMahjongSpecial(checked)
                         if (checked) {
                           setMahjongSpecialScores((prev) => ensureLength(prev, players.length, '').map((v) => String(clampInt(v))))
+                          setMahjongSpecialNote('')
                         }
                       }}
                     />
                     <span>启用手动分数</span>
                   </label>
                   <p className="mt-1 text-xs text-muted">用于跟庄等特殊结算，勾选后手动填写每位玩家分数。</p>
+                  {mahjongSpecial && (
+                    <label className="mt-2 flex flex-col gap-1 text-sm text-muted">
+                      <span>备注（可选）</span>
+                      <input
+                        type="text"
+                        className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                        value={mahjongSpecialNote}
+                        maxLength={80}
+                        onChange={(e) => setMahjongSpecialNote(e.target.value)}
+                        aria-label="特殊局备注"
+                      />
+                    </label>
+                  )}
                   {mahjongSpecial && (
                     <button
                       className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
@@ -1588,21 +1673,6 @@ function App() {
                           value={mahjongSpecialScores[idx] ?? ''}
                           onChange={(e) => updateMahjongSpecialScore(idx, e.target.value)}
                         />
-                        <select
-                          aria-label={`从下拉选择分值，玩家 ${name}`}
-                          className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
-                          value=""
-                          onChange={(e) => updateMahjongSpecialScore(idx, e.target.value)}
-                        >
-                          <option value="" disabled>
-                            下拉选择
-                          </option>
-                          {scoreOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
                       </div>
                     </div>
                   ))}
