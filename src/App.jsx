@@ -11,8 +11,12 @@ function App() {
   const [scoreRange, setScoreRange] = useState({ min: -10, max: -1 })
   const [rangeDraft, setRangeDraft] = useState({ min: '-10', max: '-1' })
   const [newRoundScores, setNewRoundScores] = useState([])
+  const [mahjongSpecial, setMahjongSpecial] = useState(false)
+  const [mahjongSpecialScores, setMahjongSpecialScores] = useState([])
   const [editingRoundId, setEditingRoundId] = useState(null)
   const [editScores, setEditScores] = useState([])
+  const [editMahjongSpecial, setEditMahjongSpecial] = useState(false)
+  const [editMahjongScores, setEditMahjongScores] = useState([])
   const [editWinnerDraft, setEditWinnerDraft] = useState(null)
   const [editGangDraft, setEditGangDraft] = useState([])
   const [showChart, setShowChart] = useState(true)
@@ -64,8 +68,12 @@ function App() {
 
   useEffect(() => {
     setNewRoundScores(Array(players.length).fill(''))
+    setMahjongSpecial(false)
+    setMahjongSpecialScores(Array(players.length).fill(''))
     setEditingRoundId(null)
     setEditScores([])
+    setEditMahjongSpecial(false)
+    setEditMahjongScores([])
     setEditWinnerDraft(null)
     setEditGangDraft([])
     setWinnerDraft(null)
@@ -75,9 +83,11 @@ function App() {
 
   useEffect(() => {
     setNewRoundScores((prev) => ensureLength(prev, players.length, ''))
+    setMahjongSpecialScores((prev) => ensureLength(prev, players.length, ''))
     if (editingRoundId !== null) {
       setEditScores((prev) => ensureLength(prev, players.length, ''))
     }
+    setEditMahjongScores((prev) => ensureLength(prev, players.length, ''))
     setGangDraft((prev) => ensureLength(prev, players.length, []))
     setEditGangDraft((prev) => ensureLength(prev, players.length, []))
   }, [players.length, editingRoundId])
@@ -236,12 +246,14 @@ function App() {
       const padded = ensureLength(scores, prev.players.length, '').map(clampInt)
       const gangs = normalizeGangs(meta.gangs ?? [], prev.players.length)
       const timestamp = typeof meta.timestamp === 'number' && Number.isFinite(meta.timestamp) ? meta.timestamp : Date.now()
+      const isMahjongSpecial = Boolean(meta.isMahjongSpecial)
       const round = {
         id: prev.nextRoundId,
         scores: padded,
         winner: Number.isInteger(meta.winner) ? meta.winner : null,
         gangs,
         timestamp,
+        isMahjongSpecial,
       }
       return {
         ...prev,
@@ -289,10 +301,32 @@ function App() {
     })
   }
 
+  const updateMahjongSpecialScore = (playerIndex, value) => {
+    setMahjongSpecialScores((prev) => prev.map((s, i) => (i === playerIndex ? value : s)))
+  }
+
+  const autoBalanceMahjongSpecial = () => {
+    setMahjongSpecialScores((prev) => {
+      if (prev.length === 0) return prev
+      const targetIndex = prev.findIndex((v) => v === '' || v === null || v === undefined)
+      const balanceIndex = targetIndex === -1 ? prev.length - 1 : targetIndex
+      const sumExcludingTarget = prev.reduce((acc, v, idx) => (idx === balanceIndex ? acc : acc + clampInt(v)), 0)
+      const next = [...prev]
+      next[balanceIndex] = String(-sumExcludingTarget)
+      return next
+    })
+  }
+
   const submitNewRound = () => {
     if (scoringMode === 'mahjong') {
-      const scores = computeMahjongScoresForDraft()
-      addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft })
+      if (mahjongSpecial) {
+        addRoundWithScores(mahjongSpecialScores, { winner: winnerDraft, gangs: gangDraft, isMahjongSpecial: true })
+        setMahjongSpecial(false)
+        setMahjongSpecialScores(Array(players.length).fill(''))
+      } else {
+        const scores = computeMahjongScoresForDraft()
+        addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft })
+      }
       setWinnerDraft(null)
       setGangDraft(createEmptyGangDraft(players.length))
     } else {
@@ -339,6 +373,8 @@ function App() {
   const startEdit = (round) => {
     setEditingRoundId(round.id)
     setEditScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
+    setEditMahjongSpecial(Boolean(round.isMahjongSpecial))
+    setEditMahjongScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
     setEditWinnerDraft(Number.isInteger(round.winner) ? round.winner : null)
     setEditGangDraft(normalizeGangs(round.gangs ?? [], players.length))
   }
@@ -346,6 +382,8 @@ function App() {
   const cancelEdit = () => {
     setEditingRoundId(null)
     setEditScores([])
+    setEditMahjongSpecial(false)
+    setEditMahjongScores([])
     setEditWinnerDraft(null)
     setEditGangDraft([])
   }
@@ -366,22 +404,50 @@ function App() {
     })
   }
 
+  const updateEditMahjongScore = (playerIndex, value) => {
+    setEditMahjongScores((prev) => prev.map((s, i) => (i === playerIndex ? value : s)))
+  }
+
+  const autoBalanceEditMahjong = () => {
+    setEditMahjongScores((prev) => {
+      if (prev.length === 0) return prev
+      const targetIndex = prev.findIndex((v) => v === '' || v === null || v === undefined)
+      const balanceIndex = targetIndex === -1 ? prev.length - 1 : targetIndex
+      const sumExcludingTarget = prev.reduce((acc, v, idx) => (idx === balanceIndex ? acc : acc + clampInt(v)), 0)
+      const next = [...prev]
+      next[balanceIndex] = String(-sumExcludingTarget)
+      return next
+    })
+  }
+
   const saveEdit = () => {
     if (editingRoundId === null) return
     if (scoringMode === 'mahjong') {
       const normalizedGangs = normalizeGangs(editGangDraft, players.length)
-      const scores = computeMahjongScores({
-        playersCount: players.length,
-        winnerIndex: editWinnerDraft,
-        gangDraft: normalizedGangs,
-        rules: state.mahjongRules,
-      })
-      updateCurrentSessionState((prev) => {
-        const nextRounds = prev.rounds.map((r) =>
-          r.id === editingRoundId ? { ...r, scores, winner: editWinnerDraft, gangs: normalizedGangs } : r,
-        )
-        return { ...prev, rounds: nextRounds }
-      })
+      if (editMahjongSpecial) {
+        const normalizedScores = ensureLength(editMahjongScores, players.length, '').map(clampInt)
+        updateCurrentSessionState((prev) => {
+          const nextRounds = prev.rounds.map((r) =>
+            r.id === editingRoundId
+              ? { ...r, scores: normalizedScores, winner: editWinnerDraft, gangs: normalizedGangs, isMahjongSpecial: true }
+              : r,
+          )
+          return { ...prev, rounds: nextRounds }
+        })
+      } else {
+        const scores = computeMahjongScores({
+          playersCount: players.length,
+          winnerIndex: editWinnerDraft,
+          gangDraft: normalizedGangs,
+          rules: state.mahjongRules,
+        })
+        updateCurrentSessionState((prev) => {
+          const nextRounds = prev.rounds.map((r) =>
+            r.id === editingRoundId ? { ...r, scores, winner: editWinnerDraft, gangs: normalizedGangs, isMahjongSpecial: false } : r,
+          )
+          return { ...prev, rounds: nextRounds }
+        })
+      }
     } else {
       const normalized = ensureLength(editScores, players.length, '').map(clampInt)
       updateCurrentSessionState((prev) => {
@@ -406,9 +472,13 @@ function App() {
     }))
     setEditingRoundId(null)
     setEditScores([])
+    setEditMahjongSpecial(false)
+    setEditMahjongScores([])
     setEditWinnerDraft(null)
     setEditGangDraft([])
     setNewRoundScores([])
+    setMahjongSpecial(false)
+    setMahjongSpecialScores([])
     setWinnerDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
   }
@@ -541,8 +611,11 @@ function App() {
 
   const mahjongPreviewScores = useMemo(() => {
     if (scoringMode !== 'mahjong') return []
+    if (mahjongSpecial) {
+      return ensureLength(mahjongSpecialScores, players.length, '').map(clampInt)
+    }
     return computeMahjongScoresForDraft()
-  }, [scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length])
+  }, [scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length, mahjongSpecial, mahjongSpecialScores])
 
   const currentMahjongStats = useMemo(() => {
     const wins = Array(players.length).fill(0)
@@ -970,13 +1043,16 @@ function App() {
               {rounds.map((round, rowIndex) => {
                 const isEditing = editingRoundId === round.id
                 const editingMahjong = isEditing && scoringMode === 'mahjong'
+                const editingMahjongSpecial = editingMahjong && editMahjongSpecial
                 const mahjongEditScores = editingMahjong
-                  ? computeMahjongScores({
-                      playersCount: players.length,
-                      winnerIndex: editWinnerDraft,
-                      gangDraft: normalizeGangs(editGangDraft, players.length),
-                      rules: state.mahjongRules,
-                    })
+                  ? editingMahjongSpecial
+                    ? ensureLength(editMahjongScores, players.length, '')
+                    : computeMahjongScores({
+                        playersCount: players.length,
+                        winnerIndex: editWinnerDraft,
+                        gangDraft: normalizeGangs(editGangDraft, players.length),
+                        rules: state.mahjongRules,
+                      })
                   : null
                 const currentScores = ensureLength(
                   editingMahjong ? mahjongEditScores : isEditing ? editScores : round.scores,
@@ -1007,10 +1083,43 @@ function App() {
                                 role="cell"
                               >
                                 {editingMahjong ? (
-                                  <div className="flex flex-col items-center justify-center gap-1 text-sm text-muted" aria-label={`${name} 当前计算分值 ${valueNumber}`}>
-                                    <div className="text-lg font-semibold text-text">{valueNumber}</div>
-                                    <div className="text-xs">由胡/杠自动计算</div>
-                                  </div>
+                                  editingMahjongSpecial ? (
+                                    <div className="flex flex-col gap-2 text-sm text-muted">
+                                      <label className="sr-only" htmlFor={`mahjong-score-${round.id}-${playerIndex}`}>
+                                        {`第 ${rowIndex + 1} 局，玩家 ${name} 分值`}
+                                      </label>
+                                      <input
+                                        id={`mahjong-score-${round.id}-${playerIndex}`}
+                                        aria-label={`第 ${rowIndex + 1} 局，玩家 ${name}`}
+                                        aria-invalid={invalid}
+                                        type="text"
+                                        inputMode="numeric"
+                                        className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                                        value={valueRaw}
+                                        onChange={(e) => updateEditMahjongScore(playerIndex, e.target.value)}
+                                      />
+                                      <select
+                                        aria-label={`从下拉选择分值，玩家 ${name}`}
+                                        className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
+                                        value=""
+                                        onChange={(e) => updateEditMahjongScore(playerIndex, e.target.value)}
+                                      >
+                                        <option value="" disabled>
+                                          下拉选择
+                                        </option>
+                                        {scoreOptions.map((opt) => (
+                                          <option key={opt} value={opt}>
+                                            {opt}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center gap-1 text-sm text-muted" aria-label={`${name} 当前计算分值 ${valueNumber}`}>
+                                      <div className="text-lg font-semibold text-text">{valueNumber}</div>
+                                      <div className="text-xs">由胡/杠自动计算</div>
+                                    </div>
+                                  )
                                 ) : isEditing ? (
                                   <div className="flex flex-col gap-2 text-sm text-muted">
                                     <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
@@ -1053,7 +1162,26 @@ function App() {
                         </div>
                         {editingMahjong && (
                           <div className="space-y-3 rounded-lg border border-line bg-panel p-3 text-sm text-muted">
-                            <div className="text-text font-medium">编辑麻将结果（保存后自动重新计算分数）</div>
+                            <div className="flex flex-col gap-2 text-text">
+                              <div className="font-medium">编辑麻将结果</div>
+                              <label className="flex items-center gap-2 text-sm text-muted">
+                                <input
+                                  type="checkbox"
+                                  className="accent-accent"
+                                  checked={editMahjongSpecial}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked
+                                    setEditMahjongSpecial(checked)
+                                    if (checked) {
+                                      const base = ensureLength(mahjongEditScores ?? round.scores, players.length, '')
+                                      setEditMahjongScores(base.map((v) => String(clampInt(v))))
+                                    }
+                                  }}
+                                />
+                                <span>特殊局：手动分数，不按胡/杠自动计算</span>
+                              </label>
+                              <div className="text-xs text-muted">仍可记录胡/杠信息用于统计；未勾选时上方分数将按规则即时计算。</div>
+                            </div>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                               <label className="flex flex-col gap-1">
                                 <span>胡牌者</span>
@@ -1176,6 +1304,7 @@ function App() {
                         )}
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
+                          {round.isMahjongSpecial && <span className="rounded-full bg-accent/10 px-2 py-1 text-accent">特殊局</span>}
                           {scoringMode === 'mahjong' && !isEditing && (
                             <>
                               <span className="rounded-full bg-panel px-2 py-1">胡：{Number.isInteger(round.winner) ? players[round.winner] || '—' : '无'}</span>
@@ -1204,11 +1333,11 @@ function App() {
                       <div className="w-40 flex-shrink-0 space-y-2 text-right text-xs">
                         {isEditing ? (
                           <>
-                            {scoringMode === 'standard' && (
+                            {(scoringMode === 'standard' || (scoringMode === 'mahjong' && editMahjongSpecial)) && (
                               <button
                                 className="w-full rounded-md border border-line bg-panel px-2 py-1 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                                 aria-label={`自动平衡第 ${rowIndex + 1} 局`}
-                                onClick={autoBalanceEdit}
+                                onClick={scoringMode === 'mahjong' ? autoBalanceEditMahjong : autoBalanceEdit}
                               >
                                 自动平衡
                               </button>
@@ -1386,6 +1515,34 @@ function App() {
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="text-sm text-muted">特殊局（手动分数）</div>
+                  <label className="mt-2 flex items-center gap-2 text-sm text-text">
+                    <input
+                      type="checkbox"
+                      className="accent-accent"
+                      checked={mahjongSpecial}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setMahjongSpecial(checked)
+                        if (checked) {
+                          setMahjongSpecialScores((prev) => ensureLength(prev, players.length, '').map((v) => String(clampInt(v))))
+                        }
+                      }}
+                    />
+                    <span>启用手动分数</span>
+                  </label>
+                  <p className="mt-1 text-xs text-muted">用于跟庄等特殊结算，勾选后手动填写每位玩家分数。</p>
+                  {mahjongSpecial && (
+                    <button
+                      className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                      type="button"
+                      onClick={autoBalanceMahjongSpecial}
+                    >
+                      自动平衡
+                    </button>
+                  )}
+                </div>
+                <div className="rounded-lg border border-line bg-panel p-3">
                   <div className="text-sm text-muted">选择胡的玩家</div>
                   <select
                     className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
@@ -1404,7 +1561,7 @@ function App() {
                   </select>
                 </div>
                 <div className="rounded-lg border border-line bg-panel p-3">
-                  <div className="text-sm text-muted">本局预览分数（含胡/杠）</div>
+                  <div className="text-sm text-muted">{mahjongSpecial ? '本局预览分数（手动）' : '本局预览分数（含胡/杠）'}</div>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                     {players.map((name, idx) => (
                       <div key={name} className="rounded-md border border-line bg-panel px-2 py-2">
@@ -1415,6 +1572,42 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              {mahjongSpecial && (
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {players.map((name, idx) => (
+                    <div key={name} className="rounded-lg border border-line bg-panel p-3" role="cell">
+                      <div className="flex flex-col gap-2 text-sm text-muted">
+                        <span className="font-medium text-text text-center">{name}</span>
+                        <input
+                          id={`mahjong-special-${idx}`}
+                          aria-label={`新增一局，玩家 ${name}（特殊局分数）`}
+                          type="text"
+                          inputMode="numeric"
+                          className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                          value={mahjongSpecialScores[idx] ?? ''}
+                          onChange={(e) => updateMahjongSpecialScore(idx, e.target.value)}
+                        />
+                        <select
+                          aria-label={`从下拉选择分值，玩家 ${name}`}
+                          className="w-full rounded-md border border-line bg-panel px-2 py-1 pr-10 text-sm text-text focus:border-accent focus:outline-none"
+                          value=""
+                          onChange={(e) => updateMahjongSpecialScore(idx, e.target.value)}
+                        >
+                          <option value="" disabled>
+                            下拉选择
+                          </option>
+                          {scoreOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {players.map((name, idx) => {
