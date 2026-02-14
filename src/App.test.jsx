@@ -12,7 +12,7 @@ describe('App', () => {
   it('renders title, default players and primary actions', () => {
     render(<App />)
 
-    expect(screen.getByText('打牌积分表单')).toBeInTheDocument()
+    expect(screen.getByText('打牌记分器')).toBeInTheDocument()
     expect(screen.getByLabelText('玩家名称 1')).toHaveValue('玩家 A')
     expect(screen.getByLabelText('玩家名称 2')).toHaveValue('玩家 B')
     expect(screen.getByRole('button', { name: '添加本局' })).toBeInTheDocument()

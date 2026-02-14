@@ -897,7 +897,7 @@ function App() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
               <p className="text-xs uppercase tracking-[0.2em] text-muted">Score Tracker</p>
-              <h1 className="text-xl font-semibold">打牌积分表单</h1>
+              <h1 className="text-xl font-semibold">打牌记分器</h1>
             </div>
             <button
               className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel md:hidden"
@@ -2129,6 +2129,22 @@ function App() {
           </section>
         )}
       </main>
+
+      <footer className="border-t border-line bg-panel/90">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs text-muted">
+          <span>
+            赣ICP备2026002780号 · 公网备案暂无
+          </span>
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-line hover:text-text"
+          >
+            工信部备案查询
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }
