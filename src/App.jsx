@@ -20,11 +20,13 @@ function App() {
   const [editMahjongScores, setEditMahjongScores] = useState([])
   const [editMahjongSpecialNote, setEditMahjongSpecialNote] = useState('')
   const [editWinnerDraft, setEditWinnerDraft] = useState(null)
+  const [editDealerDraft, setEditDealerDraft] = useState(0)
   const [editGangDraft, setEditGangDraft] = useState([])
   const [editBuyMaDraft, setEditBuyMaDraft] = useState(0)
   const [showChart, setShowChart] = useState(true)
   const [showCrossChart, setShowCrossChart] = useState(true)
   const [winnerDraft, setWinnerDraft] = useState(null)
+  const [dealerDraft, setDealerDraft] = useState(0)
   const [gangDraft, setGangDraft] = useState([])
   const [buyMaDraft, setBuyMaDraft] = useState(0)
   const [mahjongRulesDraft, setMahjongRulesDraft] = useState({ ...DEFAULT_MAHJONG_RULES })
@@ -93,9 +95,21 @@ function App() {
     setEditMahjongScores([])
     setEditMahjongSpecialNote('')
     setEditWinnerDraft(null)
+    setEditDealerDraft(0)
     setEditGangDraft([])
     setEditBuyMaDraft(0)
     setWinnerDraft(null)
+    ;(() => {
+      const rs = currentSession?.rounds ?? []
+      for (let i = rs.length - 1; i >= 0; i -= 1) {
+        const r = rs[i]
+        if (r && !r.isMahjongSpecial && Number.isInteger(r.winner) && r.winner >= 0 && r.winner < players.length) {
+          setDealerDraft(r.winner)
+          return
+        }
+      }
+      setDealerDraft(0)
+    })()
     setGangDraft(createEmptyGangDraft(players.length))
     setBuyMaDraft(0)
     setSessionNameDraft(currentSession?.name ?? '')
@@ -112,6 +126,8 @@ function App() {
     setEditMahjongSpecialNote((prev) => prev)
     setGangDraft((prev) => ensureLength(prev, players.length, []))
     setEditGangDraft((prev) => ensureLength(prev, players.length, []))
+    setDealerDraft((prev) => (Number.isInteger(prev) && prev >= 0 && prev < players.length ? prev : 0))
+    setEditDealerDraft((prev) => (Number.isInteger(prev) && prev >= 0 && prev < players.length ? prev : 0))
   }, [players.length, editingRoundId])
 
   useEffect(() => {
@@ -272,10 +288,27 @@ function App() {
       const specialNote = isMahjongSpecial && typeof meta.specialNote === 'string' ? meta.specialNote.trim() : ''
       const buyMaRaw = Number.parseInt(meta.buyMa ?? 0, 10)
       const buyMa = !isMahjongSpecial && Number.isFinite(buyMaRaw) ? Math.max(0, Math.min(4, buyMaRaw)) : 0
+      const dealerRaw = Number.parseInt(meta.dealer ?? 0, 10)
+      const prevWinnerFallback = (() => {
+        for (let i = prev.rounds.length - 1; i >= 0; i -= 1) {
+          const r = prev.rounds[i]
+          if (r && !r.isMahjongSpecial && Number.isInteger(r.winner) && r.winner >= 0 && r.winner < prev.players.length) {
+            return r.winner
+          }
+        }
+        return 0
+      })()
+      const dealer =
+        !isMahjongSpecial && Number.isFinite(dealerRaw) && dealerRaw >= 0 && dealerRaw < prev.players.length
+          ? dealerRaw
+          : !isMahjongSpecial
+            ? prevWinnerFallback
+            : null
       const round = {
         id: prev.nextRoundId,
         scores: padded,
         winner: Number.isInteger(meta.winner) ? meta.winner : null,
+        dealer,
         gangs,
         timestamp,
         isMahjongSpecial,
@@ -376,9 +409,12 @@ function App() {
         setMahjongSpecialNote('')
       } else {
         const scores = computeMahjongScoresForDraft()
-        addRoundWithScores(scores, { winner: winnerDraft, gangs: gangDraft, buyMa: buyMaDraft })
+        addRoundWithScores(scores, { winner: winnerDraft, dealer: dealerDraft, gangs: gangDraft, buyMa: buyMaDraft })
       }
       setWinnerDraft(null)
+      if (!mahjongSpecial && Number.isInteger(winnerDraft) && winnerDraft >= 0 && winnerDraft < players.length) {
+        setDealerDraft(winnerDraft)
+      }
       setGangDraft(createEmptyGangDraft(players.length))
       setBuyMaDraft(0)
     } else {
@@ -429,6 +465,7 @@ function App() {
     setEditMahjongScores(ensureLength(round.scores.map((s) => String(clampInt(s))), players.length, ''))
     setEditMahjongSpecialNote(round.specialNote || '')
     setEditWinnerDraft(Number.isInteger(round.winner) ? round.winner : null)
+    setEditDealerDraft(Number.isInteger(round.dealer) ? round.dealer : 0)
     setEditGangDraft(normalizeGangs(round.gangs ?? [], players.length))
     setEditBuyMaDraft(Number.isFinite(round.buyMa) ? Math.max(0, Math.min(4, Number.parseInt(round.buyMa, 10))) : 0)
   }
@@ -440,6 +477,7 @@ function App() {
     setEditMahjongScores([])
     setEditMahjongSpecialNote('')
     setEditWinnerDraft(null)
+    setEditDealerDraft(0)
     setEditGangDraft([])
     setEditBuyMaDraft(0)
   }
@@ -489,6 +527,7 @@ function App() {
                   ...r,
                   scores: normalizedScores,
                   winner: editWinnerDraft,
+                  dealer: null,
                   gangs: normalizedGangs,
                   isMahjongSpecial: true,
                   specialNote: editMahjongSpecialNote.trim(),
@@ -518,6 +557,7 @@ function App() {
                     ...r,
                     scores,
                     winner: editWinnerDraft,
+                    dealer: Number.isInteger(editDealerDraft) && editDealerDraft >= 0 && editDealerDraft < players.length ? editDealerDraft : 0,
                     gangs: normalizedGangs,
                     isMahjongSpecial: false,
                     specialNote: '',
@@ -556,6 +596,7 @@ function App() {
     setEditMahjongScores([])
     setEditMahjongSpecialNote('')
     setEditWinnerDraft(null)
+    setEditDealerDraft(0)
     setEditGangDraft([])
     setEditBuyMaDraft(0)
     setNewRoundScores([])
@@ -563,6 +604,7 @@ function App() {
     setMahjongSpecialScores([])
     setMahjongSpecialNote('')
     setWinnerDraft(null)
+    setDealerDraft(0)
     setGangDraft(createEmptyGangDraft(players.length))
     setBuyMaDraft(0)
   }
@@ -711,7 +753,7 @@ function App() {
       return ensureLength(mahjongSpecialScores, players.length, '').map(clampInt)
     }
     return computeMahjongScoresForDraft()
-  }, [scoringMode, winnerDraft, gangDraft, state.mahjongRules, players.length, mahjongSpecial, mahjongSpecialScores])
+  }, [scoringMode, winnerDraft, gangDraft, buyMaDraft, state.mahjongRules, players.length, mahjongSpecial, mahjongSpecialScores])
 
   const currentMahjongStats = useMemo(() => {
     const wins = Array(players.length).fill(0)
@@ -1281,9 +1323,11 @@ function App() {
                                       const base = ensureLength(mahjongEditScores ?? round.scores, players.length, '')
                                       setEditMahjongScores(base.map((v) => String(clampInt(v))))
                                       setEditBuyMaDraft(0)
+                                      setEditDealerDraft(0)
                                     }
                                     if (!checked) {
                                       setEditMahjongSpecialNote('')
+                                      setEditDealerDraft(Number.isInteger(round.dealer) ? round.dealer : 0)
                                     }
                                   }}
                                 />
@@ -1323,6 +1367,25 @@ function App() {
                                   ))}
                                 </select>
                               </label>
+                              {!editMahjongSpecial && (
+                                <label className="flex flex-col gap-1">
+                                  <span>庄家</span>
+                                  <select
+                                    className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                                    value={editDealerDraft}
+                                    onChange={(e) => {
+                                      const v = Number.parseInt(e.target.value, 10)
+                                      setEditDealerDraft(Number.isFinite(v) ? Math.max(0, Math.min(players.length - 1, v)) : 0)
+                                    }}
+                                  >
+                                    {players.map((name, idx) => (
+                                      <option key={name} value={idx}>
+                                        {name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
                               {!editMahjongSpecial && (
                                 <label className="flex flex-col gap-1">
                                   <span>买码（0-4）</span>
@@ -1448,6 +1511,13 @@ function App() {
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                           {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
                           {round.isMahjongSpecial && <span className="rounded-full bg-accent/10 px-2 py-1 text-accent">特殊局</span>}
+                          {scoringMode === 'mahjong' &&
+                            !round.isMahjongSpecial &&
+                            Number.isInteger(round.dealer) &&
+                            round.dealer >= 0 &&
+                            round.dealer < players.length && (
+                              <span className="rounded-full bg-panel px-2 py-1 text-muted">庄家：{players[round.dealer] || '—'}</span>
+                            )}
                           {round.isMahjongSpecial && round.specialNote && (
                             <span className="rounded-full bg-panel px-2 py-1 text-muted">备注：{round.specialNote}</span>
                           )}
@@ -1676,6 +1746,7 @@ function App() {
                         if (checked) {
                           setMahjongSpecialScores((prev) => ensureLength(prev, players.length, '').map((v) => String(clampInt(v))))
                           setMahjongSpecialNote('')
+                          setBuyMaDraft(0)
                         }
                       }}
                     />
@@ -1722,6 +1793,26 @@ function App() {
                       </option>
                     ))}
                   </select>
+                  {!mahjongSpecial && (
+                    <div className="mt-3">
+                      <div className="text-sm text-muted">庄家</div>
+                      <select
+                        className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                        value={dealerDraft}
+                        onChange={(e) => {
+                          const v = Number.parseInt(e.target.value, 10)
+                          setDealerDraft(Number.isFinite(v) ? Math.max(0, Math.min(players.length - 1, v)) : 0)
+                        }}
+                      >
+                        {players.map((name, idx) => (
+                          <option key={name} value={idx}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-muted">默认是上一局赢家，可手动修改</p>
+                    </div>
+                  )}
                   <div className="mt-3">
                     <div className="text-sm text-muted">买码（0-4）</div>
                     <select

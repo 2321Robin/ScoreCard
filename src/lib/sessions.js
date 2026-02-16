@@ -15,41 +15,60 @@ export const createSession = ({
 }) => {
   const safePlayers = Array.isArray(players) && players.length >= MIN_PLAYERS ? players.slice(0, MAX_PLAYERS) : defaultPlayers
 
-  const normalizedRounds = Array.isArray(rounds)
-    ? rounds.map((r, idx) => {
-        const rid = typeof r.id === 'number' ? r.id : idx + 1
-        const scores = Array.isArray(r.scores) ? r.scores.slice(0, safePlayers.length) : []
-        const padded = [...scores, ...Array(safePlayers.length - scores.length).fill(0)]
-        const isMahjongSpecial = Boolean(r.isMahjongSpecial)
-        const specialNote = isMahjongSpecial && typeof r.specialNote === 'string' ? r.specialNote : ''
-        const buyMaRaw = Number.parseInt(r.buyMa ?? 0, 10)
-        const buyMa = !isMahjongSpecial && Number.isFinite(buyMaRaw) ? Math.max(0, Math.min(4, buyMaRaw)) : 0
-        const gangs = Array.isArray(r.gangs)
-          ? ensureLength(
-              r.gangs.map((g) => {
-                if (Array.isArray(g)) {
-                  return g
-                    .map((item) => ({
-                      type: item?.type === 'an' || item?.type === 'dian' ? item.type : 'none',
-                      target: Number.isInteger(item?.target) ? item.target : null,
-                    }))
-                    .filter((item) => item.type !== 'none')
-                }
-                if (g && (g.type === 'an' || g.type === 'dian')) {
-                  return [{ type: g.type, target: Number.isInteger(g.target) ? g.target : null }]
-                }
-                return []
-              }),
-              safePlayers.length,
-              [],
-            )
-          : createEmptyGangDraft(safePlayers.length)
-        const winner = Number.isInteger(r.winner) ? r.winner : null
-        const tsRaw = Number.isFinite(r.timestamp) ? r.timestamp : Date.parse(r.timestamp) || null
-        const timestamp = Number.isFinite(tsRaw) ? tsRaw : Date.now()
-        return { id: rid, scores: padded, gangs, winner, timestamp, isMahjongSpecial, specialNote, buyMa }
-      })
-    : []
+  const normalizedRounds = (() => {
+    if (!Array.isArray(rounds)) return []
+    const list = []
+    let lastWinner = 0
+
+    rounds.forEach((r, idx) => {
+      const rid = typeof r.id === 'number' ? r.id : idx + 1
+      const scores = Array.isArray(r.scores) ? r.scores.slice(0, safePlayers.length) : []
+      const padded = [...scores, ...Array(safePlayers.length - scores.length).fill(0)]
+      const isMahjongSpecial = Boolean(r.isMahjongSpecial)
+      const specialNote = isMahjongSpecial && typeof r.specialNote === 'string' ? r.specialNote : ''
+      const buyMaRaw = Number.parseInt(r.buyMa ?? 0, 10)
+      const buyMa = !isMahjongSpecial && Number.isFinite(buyMaRaw) ? Math.max(0, Math.min(4, buyMaRaw)) : 0
+      const gangs = Array.isArray(r.gangs)
+        ? ensureLength(
+            r.gangs.map((g) => {
+              if (Array.isArray(g)) {
+                return g
+                  .map((item) => ({
+                    type: item?.type === 'an' || item?.type === 'dian' ? item.type : 'none',
+                    target: Number.isInteger(item?.target) ? item.target : null,
+                  }))
+                  .filter((item) => item.type !== 'none')
+              }
+              if (g && (g.type === 'an' || g.type === 'dian')) {
+                return [{ type: g.type, target: Number.isInteger(g.target) ? g.target : null }]
+              }
+              return []
+            }),
+            safePlayers.length,
+            [],
+          )
+        : createEmptyGangDraft(safePlayers.length)
+      const winner = Number.isInteger(r.winner) ? r.winner : null
+      const dealerRaw = Number.parseInt(r.dealer ?? NaN, 10)
+      const dealer =
+        isMahjongSpecial
+          ? null
+          : Number.isFinite(dealerRaw) && dealerRaw >= 0 && dealerRaw < safePlayers.length
+            ? dealerRaw
+            : Number.isInteger(lastWinner) && lastWinner >= 0 && lastWinner < safePlayers.length
+              ? lastWinner
+              : 0
+      const tsRaw = Number.isFinite(r.timestamp) ? r.timestamp : Date.parse(r.timestamp) || null
+      const timestamp = Number.isFinite(tsRaw) ? tsRaw : Date.now()
+      list.push({ id: rid, scores: padded, gangs, winner, dealer, timestamp, isMahjongSpecial, specialNote, buyMa })
+
+      if (!isMahjongSpecial && Number.isInteger(winner) && winner >= 0 && winner < safePlayers.length) {
+        lastWinner = winner
+      }
+    })
+
+    return list
+  })()
 
   const maxId = Math.max(...normalizedRounds.map((r) => r.id), 0)
 
