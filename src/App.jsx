@@ -27,6 +27,7 @@ function App() {
   const [editBuyMaDraft, setEditBuyMaDraft] = useState(0)
   const [showChart, setShowChart] = useState(true)
   const [showCrossChart, setShowCrossChart] = useState(true)
+  const [showCrossTable, setShowCrossTable] = useState(true)
   const [winnerDraft, setWinnerDraft] = useState(null)
   const [dealerDraft, setDealerDraft] = useState(0)
   const [followTypeDraft, setFollowTypeDraft] = useState('none')
@@ -131,6 +132,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia('(min-width: 768px)').matches) {
+      setIsHeaderMenuOpen(true)
+    }
+  }, [])
 
   useEffect(() => {
     setNewRoundScores(Array(players.length).fill(''))
@@ -1132,7 +1140,7 @@ function App() {
               <h1 className="text-xl font-semibold">打牌记分器</h1>
             </div>
             <button
-              className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel md:hidden"
+              className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
               onClick={() => setIsHeaderMenuOpen((v) => !v)}
               aria-expanded={isHeaderMenuOpen}
               aria-controls="top-menu-panel"
@@ -1143,7 +1151,7 @@ function App() {
 
           <div
             id="top-menu-panel"
-            className={`${isHeaderMenuOpen ? 'flex' : 'hidden'} flex-col gap-3 text-sm md:flex`}
+            className={`${isHeaderMenuOpen ? 'flex' : 'hidden'} flex-col gap-3 text-sm`}
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
@@ -2406,6 +2414,13 @@ function App() {
                   {showCrossChart ? '收起跨会话折线图' : '展开跨会话折线图'}
                 </button>
                 <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                  onClick={() => setShowCrossTable((v) => !v)}
+                  aria-expanded={showCrossTable}
+                >
+                  {showCrossTable ? '收起跨会话表格' : '展开跨会话表格'}
+                </button>
+                <button
                   className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:opacity-50"
                   onClick={() => exportSvgAsPng(crossChartRef, 'cross-sessions-chart.png')}
                   disabled={filteredSessions.length === 0}
@@ -2460,62 +2475,64 @@ function App() {
               当前指标：{overviewMetric === 'win' ? '赢局数' : overviewMetric === 'hu' ? '胡数（麻将）' : overviewMetric === 'gang' ? '杠数（麻将）' : '总分'}
             </div>
 
-            <div className="overflow-auto rounded-lg border border-line">
-              <div className="min-w-[720px]">
-                <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: allPlayers.length }}>
-                  <div>会话</div>
-                  <div>局数</div>
-                  <div>创建时间</div>
-                  {allPlayers.map((p) => (
-                    <div key={p} className="text-center">
-                      {p}
-                    </div>
-                  ))}
+            {showCrossTable && (
+              <div className="overflow-auto rounded-lg border border-line">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: allPlayers.length }}>
+                    <div>会话</div>
+                    <div>局数</div>
+                    <div>创建时间</div>
+                    {allPlayers.map((p) => (
+                      <div key={p} className="text-center">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
+
+                  {filteredSessions.map((session) => {
+                    const metricValues = getSessionMetricValues(session, overviewMetric)
+                    return (
+                      <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
+                        <div className="truncate" title={session.name}>
+                          {session.name}
+                        </div>
+                        <div>{session.roundsCount}</div>
+                        <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
+                          {new Date(session.createdAt || 0).toLocaleDateString()}
+                        </div>
+                        {allPlayers.map((_, idx) => {
+                          const value = metricValues[idx] ?? 0
+                          return (
+                            <div key={idx} className="text-center">
+                              {value === 0 ? '—' : value}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+
+                  {(() => {
+                    const aggregateValues = getSessionMetricValues(crossSessionAggregate, overviewMetric)
+                    return (
+                      <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: allPlayers.length }}>
+                        <div className="truncate">合计</div>
+                        <div>{crossSessionAggregate.roundsCount}</div>
+                        <div className="text-muted text-xs">—</div>
+                        {allPlayers.map((_, idx) => {
+                          const value = aggregateValues[idx] ?? 0
+                          return (
+                            <div key={idx} className="text-center">
+                              {value === 0 ? '—' : value}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
-
-                {filteredSessions.map((session) => {
-                  const metricValues = getSessionMetricValues(session, overviewMetric)
-                  return (
-                    <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
-                      <div className="truncate" title={session.name}>
-                        {session.name}
-                      </div>
-                      <div>{session.roundsCount}</div>
-                      <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
-                        {new Date(session.createdAt || 0).toLocaleDateString()}
-                      </div>
-                      {allPlayers.map((_, idx) => {
-                        const value = metricValues[idx] ?? 0
-                        return (
-                          <div key={idx} className="text-center">
-                            {value === 0 ? '—' : value}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
-
-                {(() => {
-                  const aggregateValues = getSessionMetricValues(crossSessionAggregate, overviewMetric)
-                  return (
-                    <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: allPlayers.length }}>
-                      <div className="truncate">合计</div>
-                      <div>{crossSessionAggregate.roundsCount}</div>
-                      <div className="text-muted text-xs">—</div>
-                      {allPlayers.map((_, idx) => {
-                        const value = aggregateValues[idx] ?? 0
-                        return (
-                          <div key={idx} className="text-center">
-                            {value === 0 ? '—' : value}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
               </div>
-            </div>
+            )}
 
             {showCrossChart && allPlayers.length > 0 && (
               <div className="mt-4 space-y-3">
