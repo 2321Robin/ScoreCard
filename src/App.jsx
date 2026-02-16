@@ -45,6 +45,50 @@ function App() {
   const fileInputRef = useRef(null)
   const historyRef = useRef({})
   const autoExportTriggeredRef = useRef({})
+  const chartRef = useRef(null)
+  const crossChartRef = useRef(null)
+
+  const exportSvgAsPng = (ref, filename) => {
+    const svg = ref?.current
+    if (!svg) return
+    const serializer = new XMLSerializer()
+    const source = serializer.serializeToString(svg)
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+
+    const img = new Image()
+    const viewBox = svg.viewBox?.baseVal
+    const width = viewBox?.width || svg.clientWidth || 800
+    const height = viewBox?.height || svg.clientHeight || 400
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      const png = canvas.toDataURL('image/png')
+      const a = document.createElement('a')
+      a.href = png
+      a.download = filename || 'chart.png'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    img.src = url
+  }
+
+  const openSvgInNewTab = (ref) => {
+    const svg = ref?.current
+    if (!svg) return
+    const serializer = new XMLSerializer()
+    const source = serializer.serializeToString(svg)
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  }
 
   const currentSession = useMemo(() => {
     return state.sessions.find((s) => s.id === state.currentSessionId) ?? state.sessions[0]
@@ -2213,13 +2257,29 @@ function App() {
               <h2 className="text-lg font-semibold">分数变化折线图</h2>
               <p className="text-sm text-muted">展示每位玩家的累计总分随对局的变化，便于对局过长时快速查看走势。</p>
             </div>
-            <button
-              className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-              onClick={() => setShowChart((v) => !v)}
-              aria-expanded={showChart}
-            >
-              {showChart ? '收起折线图' : '展开折线图'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                onClick={() => setShowChart((v) => !v)}
+                aria-expanded={showChart}
+              >
+                {showChart ? '收起折线图' : '展开折线图'}
+              </button>
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:opacity-50"
+                onClick={() => exportSvgAsPng(chartRef, 'scores-chart.png')}
+                disabled={rounds.length === 0}
+              >
+                导出 PNG
+              </button>
+              <button
+                className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:opacity-50"
+                onClick={() => openSvgInNewTab(chartRef)}
+                disabled={rounds.length === 0}
+              >
+                放大查看
+              </button>
+            </div>
           </div>
 
           {showChart && (
@@ -2255,7 +2315,7 @@ function App() {
 
                     return (
                       <div className="min-w-full">
-                        <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full">
+                        <svg ref={chartRef} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="w-full max-w-full">
                           <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#dcd8cc" strokeDasharray="4 4" />
                           {cumulativeSeries.map((series, idx) => {
                             const color = colors[idx % colors.length]
@@ -2344,6 +2404,20 @@ function App() {
                   aria-expanded={showCrossChart}
                 >
                   {showCrossChart ? '收起跨会话折线图' : '展开跨会话折线图'}
+                </button>
+                <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:opacity-50"
+                  onClick={() => exportSvgAsPng(crossChartRef, 'cross-sessions-chart.png')}
+                  disabled={filteredSessions.length === 0}
+                >
+                  导出 PNG
+                </button>
+                <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:opacity-50"
+                  onClick={() => openSvgInNewTab(crossChartRef)}
+                  disabled={filteredSessions.length === 0}
+                >
+                  放大查看
                 </button>
               </div>
             </div>
@@ -2476,7 +2550,7 @@ function App() {
 
                       return (
                         <div className="min-w-full">
-                          <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full">
+                          <svg ref={crossChartRef} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="w-full max-w-full">
                             <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#dcd8cc" strokeDasharray="4 4" />
                             {crossCumulativeSeries.map((series, idx) => {
                               const color = colors[idx % colors.length]

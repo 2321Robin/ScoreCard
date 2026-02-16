@@ -28,6 +28,13 @@ export const createSession = ({
       const specialNote = isMahjongSpecial && typeof r.specialNote === 'string' ? r.specialNote : ''
       const buyMaRaw = Number.parseInt(r.buyMa ?? 0, 10)
       const buyMa = !isMahjongSpecial && Number.isFinite(buyMaRaw) ? Math.max(0, Math.min(4, buyMaRaw)) : 0
+      const rawFollowType = typeof r.followType === 'string' ? r.followType : 'none'
+      const followType = isMahjongSpecial ? 'none' : rawFollowType === 'all' || rawFollowType === 'single' ? rawFollowType : 'none'
+      const rawFollowTarget = Number.parseInt(r.followTarget ?? NaN, 10)
+      const followTarget =
+        !isMahjongSpecial && followType === 'single' && Number.isInteger(rawFollowTarget) && rawFollowTarget >= 0 && rawFollowTarget < safePlayers.length
+          ? rawFollowTarget
+          : null
       const gangs = Array.isArray(r.gangs)
         ? ensureLength(
             r.gangs.map((g) => {
@@ -60,7 +67,7 @@ export const createSession = ({
               : 0
       const tsRaw = Number.isFinite(r.timestamp) ? r.timestamp : Date.parse(r.timestamp) || null
       const timestamp = Number.isFinite(tsRaw) ? tsRaw : Date.now()
-      list.push({ id: rid, scores: padded, gangs, winner, dealer, timestamp, isMahjongSpecial, specialNote, buyMa })
+      list.push({ id: rid, scores: padded, gangs, winner, dealer, timestamp, isMahjongSpecial, specialNote, buyMa, followType, followTarget })
 
       if (!isMahjongSpecial && Number.isInteger(winner) && winner >= 0 && winner < safePlayers.length) {
         lastWinner = winner
