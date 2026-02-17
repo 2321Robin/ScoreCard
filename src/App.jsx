@@ -622,6 +622,8 @@ function App() {
   // Derived data
   const totals = useMemo(() => players.map((_, idx) => rounds.reduce((acc, r) => acc + clampInt(r.scores[idx]), 0)), [players, rounds])
 
+  const leader = useMemo(() => (totals.length ? Math.max(...totals) : 0), [totals])
+
   const playerGridTemplate = useMemo(() => `repeat(${players.length}, minmax(140px, 1fr))`, [players.length])
 
   const allPlayers = useMemo(() => {
