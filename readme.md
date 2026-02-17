@@ -53,12 +53,22 @@ npm run test:run
 - 状态：组件内 useState + useMemo；localStorage 持久化
 
 ## 代码结构
-- [src/App.jsx](src/App.jsx)：主页面与交互逻辑（会话切换、录入、图表、跨会话总览）。
-- [src/lib/constants.js](src/lib/constants.js)：全局常量与默认配置（玩家上限、存储键、麻将默认规则等）。
-- [src/lib/helpers.js](src/lib/helpers.js)：基础工具函数（整数规范、数组补全、时间戳格式化、文件名解析）。
-- [src/lib/mahjong.js](src/lib/mahjong.js)：麻将相关纯函数（杠草稿生成、胡/杠计分、胜者推导）。
-- [src/lib/csv.js](src/lib/csv.js)：CSV 解析与转义辅助。
-- [src/lib/sessions.js](src/lib/sessions.js)：会话模型创建、初始化加载、会话级 CSV 解析。
+- [src/App.jsx](src/App.jsx)：主壳组件，负责会话切换、状态管理、导入导出、汇总与导航。
+- 组件：
+  - [src/components/PageToc.jsx](src/components/PageToc.jsx)：页面内目录（跳转到玩家/对局/新增/总分/图表/跨会话）。
+  - [src/components/PlayersSection.jsx](src/components/PlayersSection.jsx)：玩家增删改区块。
+  - [src/components/RoundsTable.jsx](src/components/RoundsTable.jsx)：对局列表与编辑入口（支持麻将规则、买码、跟庄）。
+  - [src/components/NewRoundSection.jsx](src/components/NewRoundSection.jsx)：新增一局（积分/麻将/特殊局，规则调整，自动平衡）。
+  - [src/components/TotalsSection.jsx](src/components/TotalsSection.jsx)：总分与胡/杠/赢局统计。
+  - [src/components/ScoreChartSection.jsx](src/components/ScoreChartSection.jsx)：分数变化折线图与导出。
+  - [src/components/CrossSessionOverview.jsx](src/components/CrossSessionOverview.jsx)：跨会话表格与折线总览。
+- 工具库：
+  - [src/lib/constants.js](src/lib/constants.js)：全局常量与默认配置（玩家上限、存储键、麻将默认规则等）。
+  - [src/lib/helpers.js](src/lib/helpers.js)：基础工具函数（整数规范、数组补全、时间戳格式化、文件名解析）。
+  - [src/lib/mahjong.js](src/lib/mahjong.js)：麻将相关纯函数（杠草稿生成、胡/杠计分、胜者推导）。
+  - [src/lib/mahjongAdjustments.js](src/lib/mahjongAdjustments.js)：麻将模式附加调整（买码、跟庄）。
+  - [src/lib/csv.js](src/lib/csv.js)：CSV 解析与转义辅助。
+  - [src/lib/sessions.js](src/lib/sessions.js)：会话模型创建、初始化加载、会话级 CSV 解析。
 
 ## 待办
 - 已完成：
@@ -92,5 +102,6 @@ npm run test:run
   - 双模式：折线图可导出、放大查看。
   - 跨对话的列表可折叠，可隐藏跨会话表格。
   - 电脑上菜单栏可折叠，默认桌面展开。
+  - App.jsx 拆分为多个子组件并添加页面目录，结构更清晰，便于导航。
 - 未完成
-  - （暂无）
+  - 暂无（可按需补充）。
