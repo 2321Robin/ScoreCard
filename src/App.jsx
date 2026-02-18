@@ -231,7 +231,7 @@ function App() {
   const renamePlayer = (idx, name) => {
     updateCurrentSessionState((session) => {
       const next = [...session.players]
-      next[idx] = name || `玩家 ${idx + 1}`
+      next[idx] = name ?? ''
       return { ...session, players: next }
     })
   }
