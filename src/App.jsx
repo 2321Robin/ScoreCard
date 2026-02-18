@@ -72,6 +72,8 @@ function App() {
   const fileInputRef = useRef(null)
   const chartRef = useRef(null)
   const crossChartRef = useRef(null)
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
 
   const currentSession = state.sessions.find((s) => s.id === state.currentSessionId) ?? state.sessions[0]
   const players = currentSession?.players ?? defaultPlayers
@@ -109,6 +111,24 @@ function App() {
     const shouldOpen = window.innerWidth >= 1024
     setIsTocOpen(shouldOpen)
   }, [])
+
+  const measureHeader = () => {
+    if (!headerRef.current) return
+    const rect = headerRef.current.getBoundingClientRect()
+    setHeaderHeight(rect.height)
+  }
+
+  useEffect(() => {
+    measureHeader()
+    const onResize = () => measureHeader()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    const id = requestAnimationFrame(measureHeader)
+    return () => cancelAnimationFrame(id)
+  }, [isHeaderMenuOpen])
 
   const updateCurrentSessionState = (updater) => {
     setState((prev) => {
@@ -816,6 +836,10 @@ function App() {
   ]
 
   return (
+      const tocTop = Math.max(headerHeight + 8, 72)
+      const tocHeight = `calc(100vh - ${Math.max(tocTop + 16, 160)}px)`
+
+      return (
     <div className="min-h-screen bg-surface text-text">
       <a
         href="#main-content"
@@ -825,6 +849,7 @@ function App() {
       </a>
 
       <header className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
+          <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 text-text">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
@@ -966,24 +991,12 @@ function App() {
       </header>
 
       <main id="main-content" className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text lg:pl-[300px]">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-muted">侧边目录</span>
-          <button
-            className="rounded-md border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-            onClick={() => setIsTocOpen((v) => !v)}
-            aria-expanded={isTocOpen}
-            aria-controls="page-toc-panel"
-          >
-            {isTocOpen ? '收起目录' : '展开目录'}
-          </button>
-        </div>
-
         <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:gap-8' : ''}`}>
           <aside
             id="page-toc-panel"
-            className={`${isTocOpen ? 'block' : 'hidden'} sticky top-16 z-30 self-start lg:fixed lg:top-24 lg:block lg:h-[calc(100vh-140px)] lg:w-[260px] lg:overflow-y-auto lg:pr-3`}
+            className={`${isTocOpen ? 'block' : 'hidden'} sticky z-30 self-start lg:fixed lg:block lg:w-[260px] lg:overflow-y-auto lg:pr-3`}
             aria-hidden={!isTocOpen}
-            style={{ left: 'max(16px, calc((100vw - 1100px) / 2))' }}
+            style={{ left: 'max(16px, calc((100vw - 1100px) / 2))', top: tocTop, height: tocHeight }}
           >
             <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
           </aside>
