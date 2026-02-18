@@ -1001,14 +1001,15 @@ function App() {
 
       <main id="main-content" className={mainClasses}>
         <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:gap-8' : ''}`}>
-          <aside
-            id="page-toc-panel"
-            className={`${isTocOpen ? 'block' : 'hidden'} sticky z-30 self-start lg:fixed lg:block lg:w-[260px] lg:overflow-y-auto lg:pr-3`}
-            aria-hidden={!isTocOpen}
-            style={{ left: 'max(16px, calc((100vw - 1100px) / 2))', top: tocTop, height: tocHeight }}
-          >
-            <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
-          </aside>
+          {isTocOpen ? (
+            <aside
+              id="page-toc-panel"
+              className="sticky z-30 self-start lg:fixed lg:w-[260px] lg:overflow-y-auto lg:pr-3"
+              style={{ left: 'max(16px, calc((100vw - 1100px) / 2))', top: tocTop, height: tocHeight }}
+            >
+              <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
+            </aside>
+          ) : null}
 
           <div className="flex flex-col gap-6">
             <PlayersSection
