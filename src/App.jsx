@@ -837,6 +837,7 @@ function App() {
 
   const tocTop = Math.max(headerHeight + 8, 72)
   const tocHeight = `calc(100vh - ${Math.max(tocTop + 16, 160)}px)`
+  const mainClasses = `mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text ${isTocOpen ? 'lg:pl-[300px]' : ''}`
 
   return (
     <div className="min-h-screen bg-surface text-text">
@@ -998,7 +999,7 @@ function App() {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text lg:pl-[300px]">
+      <main id="main-content" className={mainClasses}>
         <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:gap-8' : ''}`}>
           <aside
             id="page-toc-panel"
