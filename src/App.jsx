@@ -591,11 +591,13 @@ function App() {
     currentSession.rounds.forEach((r) => {
       rows.push([r.id, formatTimestamp(r.timestamp), ...ensureLength(r.scores, players.length, 0)].map(csvEscape).join(','))
     })
+    const lastTimestamp = currentSession.rounds.length ? currentSession.rounds[currentSession.rounds.length - 1].timestamp : Date.now()
+    const filename = `scores-${formatTimestamp(lastTimestamp)}.csv`
     const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${currentSession.name || 'session'}.csv`
+    link.download = filename
     link.click()
   }
 

@@ -14,8 +14,8 @@ export const ensureLength = (arr, target, fill = 0) => {
   return next
 }
 
-export const formatTimestamp = () => {
-  const d = new Date()
+export const formatTimestamp = (value) => {
+  const d = value ? new Date(value) : new Date()
   const pad = (n) => n.toString().padStart(2, '0')
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
 }
