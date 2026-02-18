@@ -835,11 +835,10 @@ function App() {
     { id: 'cross-overview', label: '跨会话总览' },
   ]
 
-  return (
-      const tocTop = Math.max(headerHeight + 8, 72)
-      const tocHeight = `calc(100vh - ${Math.max(tocTop + 16, 160)}px)`
+  const tocTop = Math.max(headerHeight + 8, 72)
+  const tocHeight = `calc(100vh - ${Math.max(tocTop + 16, 160)}px)`
 
-      return (
+  return (
     <div className="min-h-screen bg-surface text-text">
       <a
         href="#main-content"
@@ -848,8 +847,7 @@ function App() {
         跳转到主要内容
       </a>
 
-      <header className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
-          <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
+      <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 text-text">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
