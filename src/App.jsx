@@ -26,6 +26,7 @@ function App() {
   const [sessionNameDraft, setSessionNameDraft] = useState(state.sessions[0]?.name ?? '会话 1')
   const [targetDraft, setTargetDraft] = useState(state.sessions[0]?.targetRounds ?? '')
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(true)
+  const [isTocOpen, setIsTocOpen] = useState(true)
 
   // New round state
   const [scoreRange, setScoreRange] = useState({ min: -10, max: -1 })
@@ -102,6 +103,12 @@ function App() {
     setBuyMaDraft(0)
     cancelEdit()
   }, [currentSession?.id, players.length, state.mahjongRules])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const shouldOpen = window.innerWidth >= 1024
+    setIsTocOpen(shouldOpen)
+  }, [])
 
   const updateCurrentSessionState = (updater) => {
     setState((prev) => {
@@ -958,128 +965,155 @@ function App() {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 text-text">
-        <PageToc sections={tocSections} />
+      <main id="main-content" className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 text-text">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-muted">侧边目录</span>
+          <button
+            className="rounded-md border border-line bg-panel px-3 py-2 text-sm text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            onClick={() => setIsTocOpen((v) => !v)}
+            aria-expanded={isTocOpen}
+            aria-controls="page-toc-panel"
+          >
+            {isTocOpen ? '收起目录' : '展开目录'}
+          </button>
+        </div>
 
-        <PlayersSection players={players} onAddPlayer={addPlayer} onRemovePlayer={removePlayer} onRenamePlayer={renamePlayer} />
+        <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:grid lg:grid-cols-[260px,1fr] lg:items-start' : ''}`}>
+          <aside
+            id="page-toc-panel"
+            className={`${isTocOpen ? 'block' : 'hidden'} ${isTocOpen ? 'lg:block' : 'lg:hidden'} lg:sticky lg:top-24 lg:self-start`}
+            aria-hidden={!isTocOpen}
+          >
+            <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} />
+          </aside>
 
-        <RoundsTable
-          players={players}
-          rounds={rounds}
-          scoringMode={scoringMode}
-          logicalRoundNumbers={logicalRoundNumbers}
-          playerGridTemplate={playerGridTemplate}
-          scoreOptions={scoreOptions}
-          editingRoundId={editingRoundId}
-          editScores={editScores}
-          editMahjongSpecial={editMahjongSpecial}
-          editMahjongScores={editMahjongScores}
-          editMahjongSpecialNote={editMahjongSpecialNote}
-          editWinnerDraft={editWinnerDraft}
-          editDealerDraft={editDealerDraft}
-          editFollowTypeDraft={editFollowTypeDraft}
-          editFollowTargetDraft={editFollowTargetDraft}
-          editGangDraft={editGangDraft}
-          editBuyMaDraft={editBuyMaDraft}
-          onUpdateEditScore={updateEditScore}
-          onAutoBalanceEdit={autoBalanceEdit}
-          onUpdateEditMahjongScore={updateEditMahjongScore}
-          onAutoBalanceEditMahjong={autoBalanceEditMahjong}
-          onStartEdit={startEdit}
-          onCancelEdit={cancelEdit}
-          onSaveEdit={saveEdit}
-          onDeleteRound={deleteRound}
-          onCopyPrevious={copyPrevious}
-          setEditMahjongSpecial={setEditMahjongSpecial}
-          setEditMahjongSpecialNote={setEditMahjongSpecialNote}
-          setEditWinnerDraft={setEditWinnerDraft}
-          setEditDealerDraft={setEditDealerDraft}
-          setEditFollowTypeDraft={setEditFollowTypeDraft}
-          setEditFollowTargetDraft={setEditFollowTargetDraft}
-          setEditGangDraft={setEditGangDraft}
-          setEditBuyMaDraft={setEditBuyMaDraft}
-          mahjongRules={state.mahjongRules}
-        />
+          <div className="flex flex-col gap-6">
+            <PlayersSection
+              players={players}
+              onAddPlayer={addPlayer}
+              onRemovePlayer={removePlayer}
+              onRenamePlayer={renamePlayer}
+            />
 
-        <NewRoundSection
-          players={players}
-          scoringMode={scoringMode}
-          scoreOptions={scoreOptions}
-          rangeDraft={rangeDraft}
-          setRangeDraft={setRangeDraft}
-          applyRangeDraft={applyRangeDraft}
-          autoBalanceNewRound={autoBalanceNewRound}
-          newRoundScores={newRoundScores}
-          updateNewRoundScore={updateNewRoundScore}
-          mahjongRulesDraft={mahjongRulesDraft}
-          setMahjongRulesDraft={setMahjongRulesDraft}
-          applyMahjongRules={applyMahjongRules}
-          mahjongSpecial={mahjongSpecial}
-          setMahjongSpecial={setMahjongSpecial}
-          mahjongSpecialScores={mahjongSpecialScores}
-          setMahjongSpecialScores={setMahjongSpecialScores}
-          updateMahjongSpecialScore={updateMahjongSpecialScore}
-          mahjongSpecialNote={mahjongSpecialNote}
-          setMahjongSpecialNote={setMahjongSpecialNote}
-          autoBalanceMahjongSpecial={autoBalanceMahjongSpecial}
-          winnerDraft={winnerDraft}
-          setWinnerDraft={setWinnerDraft}
-          dealerDraft={dealerDraft}
-          setDealerDraft={setDealerDraft}
-          followTypeDraft={followTypeDraft}
-          setFollowTypeDraft={setFollowTypeDraft}
-          followTargetDraft={followTargetDraft}
-          setFollowTargetDraft={setFollowTargetDraft}
-          gangDraft={gangDraft}
-          setGangDraft={setGangDraft}
-          buyMaDraft={buyMaDraft}
-          setBuyMaDraft={setBuyMaDraft}
-          mahjongPreviewScores={mahjongPreviewScores}
-          submitNewRound={submitNewRound}
-        />
+            <RoundsTable
+              players={players}
+              rounds={rounds}
+              scoringMode={scoringMode}
+              logicalRoundNumbers={logicalRoundNumbers}
+              playerGridTemplate={playerGridTemplate}
+              scoreOptions={scoreOptions}
+              editingRoundId={editingRoundId}
+              editScores={editScores}
+              editMahjongSpecial={editMahjongSpecial}
+              editMahjongScores={editMahjongScores}
+              editMahjongSpecialNote={editMahjongSpecialNote}
+              editWinnerDraft={editWinnerDraft}
+              editDealerDraft={editDealerDraft}
+              editFollowTypeDraft={editFollowTypeDraft}
+              editFollowTargetDraft={editFollowTargetDraft}
+              editGangDraft={editGangDraft}
+              editBuyMaDraft={editBuyMaDraft}
+              onUpdateEditScore={updateEditScore}
+              onAutoBalanceEdit={autoBalanceEdit}
+              onUpdateEditMahjongScore={updateEditMahjongScore}
+              onAutoBalanceEditMahjong={autoBalanceEditMahjong}
+              onStartEdit={startEdit}
+              onCancelEdit={cancelEdit}
+              onSaveEdit={saveEdit}
+              onDeleteRound={deleteRound}
+              onCopyPrevious={copyPrevious}
+              setEditMahjongSpecial={setEditMahjongSpecial}
+              setEditMahjongSpecialNote={setEditMahjongSpecialNote}
+              setEditWinnerDraft={setEditWinnerDraft}
+              setEditDealerDraft={setEditDealerDraft}
+              setEditFollowTypeDraft={setEditFollowTypeDraft}
+              setEditFollowTargetDraft={setEditFollowTargetDraft}
+              setEditGangDraft={setEditGangDraft}
+              setEditBuyMaDraft={setEditBuyMaDraft}
+              mahjongRules={state.mahjongRules}
+            />
 
-        <TotalsSection
-          players={players}
-          totals={totals}
-          currentMahjongStats={currentMahjongStats}
-          leader={leader}
-          scoringMode={scoringMode}
-        />
+            <NewRoundSection
+              players={players}
+              scoringMode={scoringMode}
+              scoreOptions={scoreOptions}
+              rangeDraft={rangeDraft}
+              setRangeDraft={setRangeDraft}
+              applyRangeDraft={applyRangeDraft}
+              autoBalanceNewRound={autoBalanceNewRound}
+              newRoundScores={newRoundScores}
+              updateNewRoundScore={updateNewRoundScore}
+              mahjongRulesDraft={mahjongRulesDraft}
+              setMahjongRulesDraft={setMahjongRulesDraft}
+              applyMahjongRules={applyMahjongRules}
+              mahjongSpecial={mahjongSpecial}
+              setMahjongSpecial={setMahjongSpecial}
+              mahjongSpecialScores={mahjongSpecialScores}
+              setMahjongSpecialScores={setMahjongSpecialScores}
+              updateMahjongSpecialScore={updateMahjongSpecialScore}
+              mahjongSpecialNote={mahjongSpecialNote}
+              setMahjongSpecialNote={setMahjongSpecialNote}
+              autoBalanceMahjongSpecial={autoBalanceMahjongSpecial}
+              winnerDraft={winnerDraft}
+              setWinnerDraft={setWinnerDraft}
+              dealerDraft={dealerDraft}
+              setDealerDraft={setDealerDraft}
+              followTypeDraft={followTypeDraft}
+              setFollowTypeDraft={setFollowTypeDraft}
+              followTargetDraft={followTargetDraft}
+              setFollowTargetDraft={setFollowTargetDraft}
+              gangDraft={gangDraft}
+              setGangDraft={setGangDraft}
+              buyMaDraft={buyMaDraft}
+              setBuyMaDraft={setBuyMaDraft}
+              mahjongPreviewScores={mahjongPreviewScores}
+              submitNewRound={submitNewRound}
+            />
 
-        <ScoreChartSection
-          players={players}
-          rounds={rounds}
-          cumulativeSeries={cumulativeSeries}
-          showChart={showChart}
-          onToggleShow={() => setShowChart((v) => !v)}
-          onExportPng={() => exportSvgAsPng(chartRef, 'scores-chart.png')}
-          onOpenSvg={() => openSvgInNewTab(chartRef)}
-          chartRef={chartRef}
-        />
+            <TotalsSection
+              players={players}
+              totals={totals}
+              currentMahjongStats={currentMahjongStats}
+              leader={leader}
+              scoringMode={scoringMode}
+            />
 
-        <CrossSessionOverview
-          visible={showCrossOverview || state.sessions.length > 1}
-          sessionSort={sessionSort}
-          setSessionSort={setSessionSort}
-          overviewMetric={overviewMetric}
-          setOverviewMetric={setOverviewMetric}
-          sessionFilterMode={sessionFilterMode}
-          setSessionFilterMode={setSessionFilterMode}
-          selectedSessionIds={selectedSessionIds}
-          setSelectedSessionIds={setSelectedSessionIds}
-          sortedSessions={sortedSessions}
-          filteredSessions={filteredSessions}
-          allPlayers={allPlayers}
-          showCrossChart={showCrossChart}
-          setShowCrossChart={setShowCrossChart}
-          showCrossTable={showCrossTable}
-          setShowCrossTable={setShowCrossTable}
-          crossSessionAggregate={crossSessionAggregate}
-          crossCumulativeSeries={crossCumulativeSeries}
-          exportSvgAsPng={exportSvgAsPng}
-          openSvgInNewTab={openSvgInNewTab}
-          crossChartRef={crossChartRef}
-        />
+            <ScoreChartSection
+              players={players}
+              rounds={rounds}
+              cumulativeSeries={cumulativeSeries}
+              showChart={showChart}
+              onToggleShow={() => setShowChart((v) => !v)}
+              onExportPng={() => exportSvgAsPng(chartRef, 'scores-chart.png')}
+              onOpenSvg={() => openSvgInNewTab(chartRef)}
+              chartRef={chartRef}
+            />
+
+            <CrossSessionOverview
+              visible={showCrossOverview || state.sessions.length > 1}
+              sessionSort={sessionSort}
+              setSessionSort={setSessionSort}
+              overviewMetric={overviewMetric}
+              setOverviewMetric={setOverviewMetric}
+              sessionFilterMode={sessionFilterMode}
+              setSessionFilterMode={setSessionFilterMode}
+              selectedSessionIds={selectedSessionIds}
+              setSelectedSessionIds={setSelectedSessionIds}
+              sortedSessions={sortedSessions}
+              filteredSessions={filteredSessions}
+              allPlayers={allPlayers}
+              showCrossChart={showCrossChart}
+              setShowCrossChart={setShowCrossChart}
+              showCrossTable={showCrossTable}
+              setShowCrossTable={setShowCrossTable}
+              crossSessionAggregate={crossSessionAggregate}
+              crossCumulativeSeries={crossCumulativeSeries}
+              exportSvgAsPng={exportSvgAsPng}
+              openSvgInNewTab={openSvgInNewTab}
+              crossChartRef={crossChartRef}
+            />
+          </div>
+        </div>
       </main>
 
       <footer className="border-t border-line bg-panel/90">
