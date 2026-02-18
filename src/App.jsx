@@ -965,7 +965,7 @@ function App() {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 text-text">
+      <main id="main-content" className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text">
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm text-muted">侧边目录</span>
           <button
@@ -978,13 +978,15 @@ function App() {
           </button>
         </div>
 
-        <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:grid lg:grid-cols-[260px,1fr] lg:items-start' : ''}`}>
+        <div
+          className={`flex flex-col gap-6 ${isTocOpen ? 'lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-8' : ''}`}
+        >
           <aside
             id="page-toc-panel"
-            className={`${isTocOpen ? 'block' : 'hidden'} ${isTocOpen ? 'lg:block' : 'lg:hidden'} lg:sticky lg:top-24 lg:self-start`}
+            className={`${isTocOpen ? 'block' : 'hidden'} ${isTocOpen ? 'lg:block' : 'lg:hidden'} lg:sticky lg:top-24 lg:self-start lg:w-full`}
             aria-hidden={!isTocOpen}
           >
-            <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} />
+            <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
           </aside>
 
           <div className="flex flex-col gap-6">
