@@ -983,7 +983,7 @@ function App() {
         >
           <aside
             id="page-toc-panel"
-            className={`${isTocOpen ? 'block' : 'hidden'} ${isTocOpen ? 'lg:block' : 'lg:hidden'} sticky top-20 self-start lg:w-full lg:top-24 lg:max-h-[calc(100vh-140px)] lg:overflow-auto`}
+            className={`${isTocOpen ? 'block' : 'hidden'} ${isTocOpen ? 'lg:block' : 'lg:hidden'} sticky top-16 z-10 self-start lg:top-24 lg:h-[calc(100vh-140px)] lg:overflow-y-auto lg:pr-2`}
             aria-hidden={!isTocOpen}
           >
             <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
