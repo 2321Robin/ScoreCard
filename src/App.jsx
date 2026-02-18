@@ -965,7 +965,7 @@ function App() {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text">
+      <main id="main-content" className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text lg:pl-[300px]">
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm text-muted">侧边目录</span>
           <button
@@ -978,13 +978,12 @@ function App() {
           </button>
         </div>
 
-        <div
-          className={`flex flex-col gap-6 ${isTocOpen ? 'lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-8' : ''}`}
-        >
+        <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:gap-8' : ''}`}>
           <aside
             id="page-toc-panel"
-            className={`${isTocOpen ? 'block' : 'hidden'} ${isTocOpen ? 'lg:block' : 'lg:hidden'} sticky top-16 z-10 self-start lg:top-24 lg:h-[calc(100vh-140px)] lg:overflow-y-auto lg:pr-2`}
+            className={`${isTocOpen ? 'block' : 'hidden'} sticky top-16 z-30 self-start lg:fixed lg:top-24 lg:block lg:h-[calc(100vh-140px)] lg:w-[260px] lg:overflow-y-auto lg:pr-3`}
             aria-hidden={!isTocOpen}
+            style={{ left: 'max(16px, calc((100vw - 1100px) / 2))' }}
           >
             <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
           </aside>
