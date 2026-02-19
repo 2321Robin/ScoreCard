@@ -527,24 +527,6 @@ function App() {
     cancelEdit()
   }
 
-  const clearAll = () => {
-    if (!currentSession) return
-    const ok = window.confirm('仅清空当前会话的对局数据（保留玩家、名称、模式与规则），确定吗？')
-    if (!ok) return
-    updateCurrentSessionState((session) => ({ ...session, rounds: [], nextRoundId: 1, targetRounds: '' }))
-    cancelEdit()
-    setNewRoundScores([])
-    setMahjongSpecial(false)
-    setMahjongSpecialScores([])
-    setMahjongSpecialNote('')
-    setWinnerDraft(null)
-    setDealerDraft(0)
-    setFollowTypeDraft('none')
-    setFollowTargetDraft(null)
-    setGangDraft(createEmptyGangDraft(players.length))
-    setBuyMaDraft(0)
-  }
-
   // Export helpers
   const exportSvgAsPng = (ref, filename) => {
     const node = ref?.current
@@ -867,10 +849,14 @@ function App() {
             </button>
           </div>
 
-          <div id="top-menu-panel" className={`${isHeaderMenuOpen ? 'flex' : 'hidden'} flex-col gap-3 text-sm`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
-                <span>会话</span>
+          <div id="top-menu-panel" className={`${isHeaderMenuOpen ? 'grid' : 'hidden'} grid-cols-1 gap-3 text-sm lg:grid-cols-2`}>
+            <div className="rounded-xl border border-line bg-panel p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted">
+                <span className="font-semibold uppercase tracking-[0.18em]">会话与模式</span>
+                <span className="rounded-full bg-line/40 px-2 py-0.5 text-[11px] text-text">共 {state.sessions.length} 个会话</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted">会话</span>
                 <select
                   aria-label="切换会话"
                   className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
@@ -909,11 +895,8 @@ function App() {
                   删除
                 </button>
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
-                <span>目标局数</span>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-muted">目标</span>
                 <input
                   type="number"
                   className="w-20 rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
@@ -927,9 +910,7 @@ function App() {
                 >
                   设定
                 </button>
-              </div>
-              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
-                <span>模式</span>
+                <span className="ml-2 text-muted">模式</span>
                 <select
                   className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
                   value={scoringMode}
@@ -938,9 +919,7 @@ function App() {
                   <option value="standard">积分模式</option>
                   <option value="mahjong">麻将模式</option>
                 </select>
-              </div>
-              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-muted">
-                <span>目录</span>
+                <span className="ml-2 text-muted">目录</span>
                 <button
                   className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                   onClick={() => setIsTocOpen((v) => !v)}
@@ -949,51 +928,56 @@ function App() {
                   {isTocOpen ? '隐藏' : '显示'}
                 </button>
               </div>
-              <button
-                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                onClick={clearAll}
-              >
-                清空（需确认）
-              </button>
-              <button
-                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                onClick={() => {}}
-                disabled
-              >
-                撤销
-              </button>
-              <button
-                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                onClick={() => {}}
-                disabled
-              >
-                重做
-              </button>
-              <button
-                className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                onClick={exportCurrentCsv}
-              >
-                导出当前 CSV
-              </button>
-              <button
-                className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                onClick={exportAllSessionsCsv}
-              >
-                导出全部 CSV
-              </button>
-              <div className="relative">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                  onChange={(e) => handleImportFiles(e.target.files)}
-                />
+            </div>
+
+            <div className="rounded-xl border border-line bg-panel p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted">
+                <span className="font-semibold uppercase tracking-[0.18em]">数据操作</span>
+                <span className="text-[11px]">CSV 导入导出</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                  onClick={exportCurrentCsv}
+                >
+                  导出当前 CSV
+                </button>
                 <button
                   className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                  onClick={triggerImport}
+                  onClick={exportAllSessionsCsv}
                 >
-                  导入 CSV
+                  导出全部 CSV
+                </button>
+                <div className="relative">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(e) => handleImportFiles(e.target.files)}
+                  />
+                  <button
+                    className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                    onClick={triggerImport}
+                  >
+                    导入 CSV
+                  </button>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                  onClick={() => {}}
+                  disabled
+                >
+                  撤销
+                </button>
+                <button
+                  className="rounded-lg border border-line bg-panel px-3 py-2 text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                  onClick={() => {}}
+                  disabled
+                >
+                  重做
                 </button>
               </div>
             </div>
