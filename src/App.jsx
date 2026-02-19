@@ -20,6 +20,16 @@ import TotalsSection from './components/TotalsSection'
 import ScoreChartSection from './components/ScoreChartSection'
 import CrossSessionOverview from './components/CrossSessionOverview'
 
+// Use the latest winning player as the default dealer for the next mahjong round
+const getLatestWinnerIndex = (rounds) => {
+  if (!Array.isArray(rounds)) return 0
+  for (let i = rounds.length - 1; i >= 0; i -= 1) {
+    const winner = rounds[i]?.winner
+    if (Number.isInteger(winner) && winner >= 0) return winner
+  }
+  return 0
+}
+
 function App() {
   // Session state
   const [state, setState] = useState(loadInitialState)
@@ -98,7 +108,7 @@ function App() {
     setMahjongSpecialScores([])
     setMahjongSpecialNote('')
     setWinnerDraft(null)
-    setDealerDraft(0)
+    setDealerDraft(getLatestWinnerIndex(currentSession?.rounds ?? []))
     setFollowTypeDraft('none')
     setFollowTargetDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
@@ -368,6 +378,7 @@ function App() {
       dealerIndex: dealerDraft,
       playersCount: players.length,
     })
+    const nextDealerDraft = Number.isInteger(winnerDraft) ? winnerDraft : dealerDraft
 
     updateCurrentSessionState((session) => ({
       ...session,
@@ -391,7 +402,7 @@ function App() {
     }))
 
     setWinnerDraft(null)
-    setDealerDraft(0)
+    setDealerDraft(nextDealerDraft)
     setFollowTypeDraft('none')
     setFollowTargetDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
