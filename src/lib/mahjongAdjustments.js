@@ -32,3 +32,11 @@ export const applyFollowDealerAdjustment = ({ scores, followType, followTarget, 
 
   return normalized
 }
+
+export const applyQingShuiHuAdjustment = ({ scores, qingShuiHu, winnerIndex, playersCount }) => {
+  if (!qingShuiHu) return scores
+  if (playersCount !== 4) return scores
+  if (!Number.isInteger(winnerIndex) || winnerIndex < 0 || winnerIndex >= playersCount) return scores
+
+  return scores.map((v, idx) => clampInt(v) + (idx === winnerIndex ? 3 : -1))
+}

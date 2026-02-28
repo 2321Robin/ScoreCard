@@ -9,7 +9,7 @@ import {
 } from './lib/constants'
 import { clampInt, ensureLength, formatTimestamp, parseDateFromFilename } from './lib/helpers'
 import { computeMahjongScores, createEmptyGangDraft, deriveRoundWinners, normalizeGangs } from './lib/mahjong'
-import { applyBuyMaAdjustment, applyFollowDealerAdjustment } from './lib/mahjongAdjustments'
+import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment } from './lib/mahjongAdjustments'
 import { csvEscape } from './lib/csv'
 import { createSession, loadInitialState, parseSessionsFromCsv } from './lib/sessions'
 import PageToc from './components/PageToc'
@@ -52,6 +52,7 @@ function App() {
   const [followTargetDraft, setFollowTargetDraft] = useState(null)
   const [gangDraft, setGangDraft] = useState(createEmptyGangDraft(defaultPlayers.length))
   const [buyMaDraft, setBuyMaDraft] = useState(0)
+  const [qingShuiHuDraft, setQingShuiHuDraft] = useState(false)
 
   // Edit state
   const [editingRoundId, setEditingRoundId] = useState(null)
@@ -65,6 +66,7 @@ function App() {
   const [editFollowTargetDraft, setEditFollowTargetDraft] = useState(null)
   const [editGangDraft, setEditGangDraft] = useState(createEmptyGangDraft(defaultPlayers.length))
   const [editBuyMaDraft, setEditBuyMaDraft] = useState(0)
+  const [editQingShuiHuDraft, setEditQingShuiHuDraft] = useState(false)
 
   // View state
   const [showChart, setShowChart] = useState(true)
@@ -113,6 +115,7 @@ function App() {
     setFollowTargetDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
     setBuyMaDraft(0)
+    setQingShuiHuDraft(false)
     cancelEdit()
   }, [currentSession?.id, players.length, state.mahjongRules])
 
@@ -307,8 +310,9 @@ function App() {
   const computeMahjongScoresForDraft = () => {
     const base = computeMahjongScores({ playersCount: players.length, winnerIndex: winnerDraft, gangDraft, rules: state.mahjongRules })
     const afterBuyMa = applyBuyMaAdjustment({ scores: base, buyMa: buyMaDraft, winnerIndex: winnerDraft, playersCount: players.length })
+    const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: qingShuiHuDraft, winnerIndex: winnerDraft, playersCount: players.length })
     return applyFollowDealerAdjustment({
-      scores: afterBuyMa,
+      scores: afterQingShuiHu,
       followType: followTypeDraft,
       followTarget: followTargetDraft,
       dealerIndex: dealerDraft,
@@ -357,6 +361,7 @@ function App() {
             winner: null,
             dealer: null,
             gangs: createEmptyGangDraft(players.length),
+            qingShuiHu: false,
           },
         ],
         nextRoundId: session.nextRoundId + 1,
@@ -371,8 +376,9 @@ function App() {
     const normalizedGangs = normalizeGangs(gangDraft, players.length)
     const base = computeMahjongScores({ playersCount: players.length, winnerIndex: winnerDraft, gangDraft: normalizedGangs, rules: state.mahjongRules })
     const afterBuyMa = applyBuyMaAdjustment({ scores: base, buyMa: buyMaDraft, winnerIndex: winnerDraft, playersCount: players.length })
+    const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: qingShuiHuDraft, winnerIndex: winnerDraft, playersCount: players.length })
     const finalScores = applyFollowDealerAdjustment({
-      scores: afterBuyMa,
+      scores: afterQingShuiHu,
       followType: followTypeDraft,
       followTarget: followTargetDraft,
       dealerIndex: dealerDraft,
@@ -396,6 +402,7 @@ function App() {
           buyMa: buyMaDraft,
           followType: followTypeDraft,
           followTarget: followTargetDraft,
+          qingShuiHu: Boolean(qingShuiHuDraft),
         },
       ],
       nextRoundId: session.nextRoundId + 1,
@@ -407,6 +414,7 @@ function App() {
     setFollowTargetDraft(null)
     setGangDraft(createEmptyGangDraft(players.length))
     setBuyMaDraft(0)
+    setQingShuiHuDraft(false)
     setNewRoundScores(Array(players.length).fill(''))
   }
 
@@ -429,6 +437,7 @@ function App() {
     setEditFollowTargetDraft(Number.isInteger(round.followTarget) ? round.followTarget : null)
     setEditGangDraft(normalizeGangs(round.gangs, players.length))
     setEditBuyMaDraft(Number.isFinite(round.buyMa) ? round.buyMa : 0)
+    setEditQingShuiHuDraft(Boolean(round.qingShuiHu))
   }
 
   const cancelEdit = () => {
@@ -443,6 +452,7 @@ function App() {
     setEditFollowTargetDraft(null)
     setEditGangDraft(createEmptyGangDraft(players.length))
     setEditBuyMaDraft(0)
+    setEditQingShuiHuDraft(false)
   }
 
   const updateEditScore = (idx, value) => {
@@ -498,13 +508,15 @@ function App() {
               buyMa: 0,
               followType: 'none',
               followTarget: null,
+              qingShuiHu: false,
             }
           }
           const normalizedGangs = normalizeGangs(editGangDraft, players.length)
           const base = computeMahjongScores({ playersCount: players.length, winnerIndex: editWinnerDraft, gangDraft: normalizedGangs, rules: state.mahjongRules })
           const afterBuyMa = applyBuyMaAdjustment({ scores: base, buyMa: editBuyMaDraft, winnerIndex: editWinnerDraft, playersCount: players.length })
+          const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: editQingShuiHuDraft, winnerIndex: editWinnerDraft, playersCount: players.length })
           const finalScores = applyFollowDealerAdjustment({
-            scores: afterBuyMa,
+            scores: afterQingShuiHu,
             followType: editFollowTypeDraft,
             followTarget: editFollowTargetDraft,
             dealerIndex: editDealerDraft,
@@ -521,6 +533,7 @@ function App() {
             buyMa: editBuyMaDraft,
             followType: editFollowTypeDraft,
             followTarget: editFollowTargetDraft,
+            qingShuiHu: Boolean(editQingShuiHuDraft),
           }
         }
         const normalized = ensureLength(editScores, players.length, '').map(clampInt)
@@ -1034,6 +1047,7 @@ function App() {
               editFollowTargetDraft={editFollowTargetDraft}
               editGangDraft={editGangDraft}
               editBuyMaDraft={editBuyMaDraft}
+              editQingShuiHuDraft={editQingShuiHuDraft}
               onUpdateEditScore={updateEditScore}
               onAutoBalanceEdit={autoBalanceEdit}
               onUpdateEditMahjongScore={updateEditMahjongScore}
@@ -1051,6 +1065,7 @@ function App() {
               setEditFollowTargetDraft={setEditFollowTargetDraft}
               setEditGangDraft={setEditGangDraft}
               setEditBuyMaDraft={setEditBuyMaDraft}
+              setEditQingShuiHuDraft={setEditQingShuiHuDraft}
               mahjongRules={state.mahjongRules}
             />
 
@@ -1087,6 +1102,8 @@ function App() {
               setGangDraft={setGangDraft}
               buyMaDraft={buyMaDraft}
               setBuyMaDraft={setBuyMaDraft}
+              qingShuiHuDraft={qingShuiHuDraft}
+              setQingShuiHuDraft={setQingShuiHuDraft}
               mahjongPreviewScores={mahjongPreviewScores}
               submitNewRound={submitNewRound}
             />

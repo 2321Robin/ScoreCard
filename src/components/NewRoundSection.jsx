@@ -34,6 +34,8 @@ function NewRoundSection({
   setGangDraft,
   buyMaDraft,
   setBuyMaDraft,
+  qingShuiHuDraft,
+  setQingShuiHuDraft,
   mahjongPreviewScores,
   submitNewRound,
 }) {
@@ -184,6 +186,7 @@ function NewRoundSection({
                       setBuyMaDraft(0)
                       setFollowTypeDraft('none')
                       setFollowTargetDraft(null)
+                      setQingShuiHuDraft(false)
                     }
                   }}
                 />
@@ -248,6 +251,19 @@ function NewRoundSection({
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-muted">默认是上一局赢家，可手动修改</p>
+                </div>
+              )}
+              {!mahjongSpecial && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-sm text-muted">清水胡</div>
+                  <button
+                    type="button"
+                    className={`w-full rounded-md border px-3 py-2 text-sm transition ${qingShuiHuDraft ? 'border-accent bg-accent/20 text-text' : 'border-line bg-panel text-text'} ${players.length !== 4 ? 'opacity-60' : ''}`}
+                    onClick={() => setQingShuiHuDraft((v) => !v)}
+                    disabled={players.length !== 4}
+                  >
+                    {qingShuiHuDraft ? '已启用' : '未启用，点此启用'}
+                  </button>
                 </div>
               )}
               {!mahjongSpecial && (

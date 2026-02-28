@@ -1,6 +1,6 @@
 import { clampInt, ensureLength } from '../lib/helpers'
 import { computeMahjongScores, normalizeGangs } from '../lib/mahjong'
-import { applyBuyMaAdjustment, applyFollowDealerAdjustment } from '../lib/mahjongAdjustments'
+import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment } from '../lib/mahjongAdjustments'
 
 function RoundsTable({
   sectionId = 'rounds',
@@ -21,6 +21,7 @@ function RoundsTable({
   editFollowTargetDraft,
   editGangDraft,
   editBuyMaDraft,
+  editQingShuiHuDraft,
   onUpdateEditScore,
   onAutoBalanceEdit,
   onUpdateEditMahjongScore,
@@ -38,6 +39,7 @@ function RoundsTable({
   setEditFollowTargetDraft,
   setEditGangDraft,
   setEditBuyMaDraft,
+  setEditQingShuiHuDraft,
   mahjongRules,
 }) {
   return (
@@ -87,8 +89,14 @@ function RoundsTable({
                       winnerIndex: editWinnerDraft,
                       playersCount: players.length,
                     })
-                    return applyFollowDealerAdjustment({
+                    const afterQingShuiHu = applyQingShuiHuAdjustment({
                       scores: afterBuyMa,
+                      qingShuiHu: editQingShuiHuDraft,
+                      winnerIndex: editWinnerDraft,
+                      playersCount: players.length,
+                    })
+                    return applyFollowDealerAdjustment({
+                      scores: afterQingShuiHu,
                       followType: editFollowTypeDraft,
                       followTarget: editFollowTargetDraft,
                       dealerIndex: editDealerDraft,
@@ -212,6 +220,7 @@ function RoundsTable({
                                   setEditDealerDraft(Number.isInteger(round.dealer) ? round.dealer : 0)
                                   setEditFollowTypeDraft(round.followType === 'all' || round.followType === 'single' ? round.followType : 'none')
                                   setEditFollowTargetDraft(Number.isInteger(round.followTarget) ? round.followTarget : null)
+                                  setEditQingShuiHuDraft(Boolean(round.qingShuiHu))
                                 }
                               }}
                             />
@@ -268,6 +277,19 @@ function RoundsTable({
                                   </option>
                                 ))}
                               </select>
+                            </label>
+                          )}
+                          {!editMahjongSpecial && (
+                            <label className="flex flex-col gap-1">
+                              <span>清水胡</span>
+                              <button
+                                type="button"
+                                className={`rounded-md border px-3 py-2 text-left text-sm transition ${editQingShuiHuDraft ? 'border-accent bg-accent/20 text-text' : 'border-line bg-panel text-text'} ${players.length !== 4 ? 'opacity-60' : ''}`}
+                                onClick={() => setEditQingShuiHuDraft((v) => !v)}
+                                disabled={players.length !== 4}
+                              >
+                                {editQingShuiHuDraft ? '已启用' : '未启用，点此启用'}
+                              </button>
                             </label>
                           )}
                           {!editMahjongSpecial && (
@@ -444,6 +466,9 @@ function RoundsTable({
                       {!round.isMahjongSpecial && Number.isFinite(round.buyMa) && round.buyMa > 0 && (
                         <span className="rounded-full bg-panel px-2 py-1 text-muted">买码：{round.buyMa}</span>
                       )}
+                      {!round.isMahjongSpecial && round.qingShuiHu && (
+                        <span className="rounded-full bg-panel px-2 py-1 text-muted">清水胡</span>
+                      )}
                       {!round.isMahjongSpecial && round.followType === 'all' && (
                         <span className="rounded-full bg-panel px-2 py-1 text-muted">跟庄：庄家给三家各 1 分</span>
                       )}
@@ -458,7 +483,6 @@ function RoundsTable({
                         <>
                           <span className="rounded-full bg-panel px-2 py-1">胡：{Number.isInteger(round.winner) ? players[round.winner] || '—' : '无'}</span>
                           <span className="rounded-full bg-panel px-2 py-1">
-                            杠：
                             {Array.isArray(round.gangs)
                               ? (() => {
                                   const desc = []
@@ -470,9 +494,9 @@ function RoundsTable({
                                       if (entry.type === 'dian') desc.push(`${players[idx] || ''} 点 ${players[entry.target] || ''}`)
                                     })
                                   })
-                                  return desc.length > 0 ? desc.join('，') : '无'
+                                  return desc.length > 0 ? desc.join('，') : ''
                                 })()
-                              : '无'}
+                              : ''}
                           </span>
                         </>
                       )}
