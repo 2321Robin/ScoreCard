@@ -1138,11 +1138,42 @@ function App() {
       </main>
 
       <footer className="border-t border-line bg-panel/90">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs text-muted">
-          <span>赣ICP备2026002780号 · 公网备案暂无</span>
-          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="underline decoration-line hover:text-text">
-            工信部备案查询
-          </a>
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-2 px-4 py-4 text-xs text-muted">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="https://beian.miit.gov.cn/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-line hover:text-text"
+            >
+              赣ICP备2026002780号
+            </a>
+            <span className="hidden sm:inline">·</span>
+            <a
+              href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=36098302260203"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 underline decoration-line hover:text-text"
+            >
+              <svg
+                aria-hidden="true"
+                focusable="false"
+                className="h-4 w-4 text-current"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 3.5 5 6v5.8c0 4 2.8 7.7 7 8.7 4.2-1 7-4.7 7-8.7V6l-7-2.5Z" />
+                <path d="M9.2 11.5c.5 1.2 1.5 2 2.8 2s2.3-.8 2.8-2" />
+                <path d="M9 8.5h.01" />
+                <path d="M15 8.5h.01" />
+              </svg>
+              赣公网安备36098302260203号
+            </a>
+          </div>
         </div>
       </footer>
     </div>
