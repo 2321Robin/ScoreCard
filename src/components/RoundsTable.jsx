@@ -1,6 +1,11 @@
 import { clampInt, ensureLength } from '../lib/helpers'
 import { computeMahjongScores, normalizeGangs } from '../lib/mahjong'
-import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment } from '../lib/mahjongAdjustments'
+import {
+  applyBuyMaAdjustment,
+  applyFollowDealerAdjustment,
+  applyQiangGangAdjustment,
+  applyQingShuiHuAdjustment,
+} from '../lib/mahjongAdjustments'
 
 function RoundsTable({
   sectionId = 'rounds',
@@ -22,6 +27,8 @@ function RoundsTable({
   editGangDraft,
   editBuyMaDraft,
   editQingShuiHuDraft,
+  editQiangGangRobberDraft,
+  editQiangGangTargetDraft,
   onUpdateEditScore,
   onAutoBalanceEdit,
   onUpdateEditMahjongScore,
@@ -40,6 +47,8 @@ function RoundsTable({
   setEditGangDraft,
   setEditBuyMaDraft,
   setEditQingShuiHuDraft,
+  setEditQiangGangRobberDraft,
+  setEditQiangGangTargetDraft,
   mahjongRules,
 }) {
   return (
@@ -77,26 +86,35 @@ function RoundsTable({
               ? editingMahjongSpecial
                 ? ensureLength(editMahjongScores, players.length, '')
                 : (() => {
+                    const hasQiangGang = Number.isInteger(editQiangGangRobberDraft) && Number.isInteger(editQiangGangTargetDraft)
+                    const winnerForAdjustments = Number.isInteger(editQiangGangRobberDraft) ? editQiangGangRobberDraft : editWinnerDraft
+                    const baseWinnerIndex = hasQiangGang ? null : winnerForAdjustments
                     const base = computeMahjongScores({
                       playersCount: players.length,
-                      winnerIndex: editWinnerDraft,
+                      winnerIndex: baseWinnerIndex,
                       gangDraft: normalizeGangs(editGangDraft, players.length),
                       rules: mahjongRules,
                     })
                     const afterBuyMa = applyBuyMaAdjustment({
                       scores: base,
                       buyMa: editBuyMaDraft,
-                      winnerIndex: editWinnerDraft,
+                      winnerIndex: winnerForAdjustments,
                       playersCount: players.length,
+                      qiangGang: hasQiangGang ? { robber: editQiangGangRobberDraft, target: editQiangGangTargetDraft } : null,
                     })
                     const afterQingShuiHu = applyQingShuiHuAdjustment({
                       scores: afterBuyMa,
                       qingShuiHu: editQingShuiHuDraft,
-                      winnerIndex: editWinnerDraft,
+                      winnerIndex: winnerForAdjustments,
+                      playersCount: players.length,
+                    })
+                    const afterQiangGang = applyQiangGangAdjustment({
+                      scores: afterQingShuiHu,
+                      qiangGang: hasQiangGang ? { robber: editQiangGangRobberDraft, target: editQiangGangTargetDraft } : null,
                       playersCount: players.length,
                     })
                     return applyFollowDealerAdjustment({
-                      scores: afterQingShuiHu,
+                      scores: afterQiangGang,
                       followType: editFollowTypeDraft,
                       followTarget: editFollowTargetDraft,
                       dealerIndex: editDealerDraft,
@@ -214,6 +232,9 @@ function RoundsTable({
                                   setEditDealerDraft(0)
                                   setEditFollowTypeDraft('none')
                                   setEditFollowTargetDraft(null)
+                                  setEditQingShuiHuDraft(false)
+                                  setEditQiangGangRobberDraft(null)
+                                  setEditQiangGangTargetDraft(null)
                                 }
                                 if (!checked) {
                                   setEditMahjongSpecialNote('')
@@ -221,6 +242,8 @@ function RoundsTable({
                                   setEditFollowTypeDraft(round.followType === 'all' || round.followType === 'single' ? round.followType : 'none')
                                   setEditFollowTargetDraft(Number.isInteger(round.followTarget) ? round.followTarget : null)
                                   setEditQingShuiHuDraft(Boolean(round.qingShuiHu))
+                                  setEditQiangGangRobberDraft(Number.isInteger(round.qiangGang?.robber) ? round.qiangGang.robber : null)
+                                  setEditQiangGangTargetDraft(Number.isInteger(round.qiangGang?.target) ? round.qiangGang.target : null)
                                 }
                               }}
                             />
@@ -291,6 +314,45 @@ function RoundsTable({
                                 {editQingShuiHuDraft ? '已启用' : '未启用，点此启用'}
                               </button>
                             </label>
+                          )}
+                          {!editMahjongSpecial && (
+                            <div className="flex flex-col gap-1">
+                              <span>抢杠</span>
+                              <select
+                                className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                                value={editQiangGangRobberDraft ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                  const next = Number.isFinite(v) ? v : null
+                                  setEditQiangGangRobberDraft(next)
+                                  if (Number.isFinite(next)) setEditWinnerDraft(next)
+                                  if (next === null || next === editQiangGangTargetDraft) setEditQiangGangTargetDraft(null)
+                                }}
+                              >
+                                <option value="">无</option>
+                                {players.map((name, idx) => (
+                                  <option key={name} value={idx}>
+                                    {name}（抢杠者/胡牌）
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none disabled:opacity-50"
+                                value={editQiangGangTargetDraft ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                  setEditQiangGangTargetDraft(Number.isFinite(v) ? v : null)
+                                }}
+                                disabled={editQiangGangRobberDraft === null}
+                              >
+                                <option value="">被抢杠者</option>
+                                {players.map((name, idx) => (
+                                  <option key={name} value={idx} disabled={idx === editQiangGangRobberDraft}>
+                                    {name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           )}
                           {!editMahjongSpecial && (
                             <label className="flex flex-col gap-1">
@@ -468,6 +530,11 @@ function RoundsTable({
                       )}
                       {!round.isMahjongSpecial && round.qingShuiHu && (
                         <span className="rounded-full bg-panel px-2 py-1 text-muted">清水胡</span>
+                      )}
+                      {!round.isMahjongSpecial && round.qiangGang && Number.isInteger(round.qiangGang.robber) && Number.isInteger(round.qiangGang.target) && (
+                        <span className="rounded-full bg-panel px-2 py-1 text-muted">
+                          抢杠：{players[round.qiangGang.robber] || '—'} 抢 {players[round.qiangGang.target] || '—'}
+                        </span>
                       )}
                       {!round.isMahjongSpecial && round.followType === 'all' && (
                         <span className="rounded-full bg-panel px-2 py-1 text-muted">跟庄：庄家给三家各 1 分</span>

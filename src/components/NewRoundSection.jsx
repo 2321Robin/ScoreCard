@@ -36,6 +36,10 @@ function NewRoundSection({
   setBuyMaDraft,
   qingShuiHuDraft,
   setQingShuiHuDraft,
+  qiangGangRobberDraft,
+  setQiangGangRobberDraft,
+  qiangGangTargetDraft,
+  setQiangGangTargetDraft,
   mahjongPreviewScores,
   submitNewRound,
 }) {
@@ -264,6 +268,48 @@ function NewRoundSection({
                   >
                     {qingShuiHuDraft ? '已启用' : '未启用，点此启用'}
                   </button>
+                </div>
+              )}
+              {!mahjongSpecial && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-sm text-muted">抢杠</div>
+                  <div className="space-y-1 text-sm text-text">
+                    <select
+                      className="w-full rounded-md border border-line bg-panel px-2 py-1 focus:border-accent focus:outline-none"
+                      value={qiangGangRobberDraft ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                        const next = Number.isFinite(v) ? v : null
+                        setQiangGangRobberDraft(next)
+                        setWinnerDraft(Number.isFinite(next) ? next : winnerDraft)
+                        if (next === null) setQiangGangTargetDraft(null)
+                        if (Number.isFinite(next) && next === qiangGangTargetDraft) setQiangGangTargetDraft(null)
+                      }}
+                    >
+                      <option value="">无</option>
+                      {players.map((name, idx) => (
+                        <option key={name} value={idx}>
+                          {name}（抢杠者/胡牌）
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="w-full rounded-md border border-line bg-panel px-2 py-1 focus:border-accent focus:outline-none"
+                      value={qiangGangTargetDraft ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                        setQiangGangTargetDraft(Number.isFinite(v) ? v : null)
+                      }}
+                      disabled={qiangGangRobberDraft === null}
+                    >
+                      <option value="">被抢杠者</option>
+                      {players.map((name, idx) => (
+                        <option key={name} value={idx} disabled={idx === qiangGangRobberDraft}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
               {!mahjongSpecial && (

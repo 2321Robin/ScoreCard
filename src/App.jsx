@@ -9,7 +9,7 @@ import {
 } from './lib/constants'
 import { clampInt, ensureLength, formatTimestamp, parseDateFromFilename } from './lib/helpers'
 import { computeMahjongScores, createEmptyGangDraft, deriveRoundWinners, normalizeGangs } from './lib/mahjong'
-import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment } from './lib/mahjongAdjustments'
+import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment, applyQiangGangAdjustment } from './lib/mahjongAdjustments'
 import { csvEscape } from './lib/csv'
 import { createSession, loadInitialState, parseSessionsFromCsv } from './lib/sessions'
 import PageToc from './components/PageToc'
@@ -53,6 +53,8 @@ function App() {
   const [gangDraft, setGangDraft] = useState(createEmptyGangDraft(defaultPlayers.length))
   const [buyMaDraft, setBuyMaDraft] = useState(0)
   const [qingShuiHuDraft, setQingShuiHuDraft] = useState(false)
+  const [qiangGangRobberDraft, setQiangGangRobberDraft] = useState(null)
+  const [qiangGangTargetDraft, setQiangGangTargetDraft] = useState(null)
 
   // Edit state
   const [editingRoundId, setEditingRoundId] = useState(null)
@@ -67,6 +69,8 @@ function App() {
   const [editGangDraft, setEditGangDraft] = useState(createEmptyGangDraft(defaultPlayers.length))
   const [editBuyMaDraft, setEditBuyMaDraft] = useState(0)
   const [editQingShuiHuDraft, setEditQingShuiHuDraft] = useState(false)
+  const [editQiangGangRobberDraft, setEditQiangGangRobberDraft] = useState(null)
+  const [editQiangGangTargetDraft, setEditQiangGangTargetDraft] = useState(null)
 
   // View state
   const [showChart, setShowChart] = useState(true)
@@ -116,6 +120,8 @@ function App() {
     setGangDraft(createEmptyGangDraft(players.length))
     setBuyMaDraft(0)
     setQingShuiHuDraft(false)
+    setQiangGangRobberDraft(null)
+    setQiangGangTargetDraft(null)
     cancelEdit()
   }, [currentSession?.id, players.length, state.mahjongRules])
 
@@ -308,11 +314,26 @@ function App() {
   }
 
   const computeMahjongScoresForDraft = () => {
-    const base = computeMahjongScores({ playersCount: players.length, winnerIndex: winnerDraft, gangDraft, rules: state.mahjongRules })
-    const afterBuyMa = applyBuyMaAdjustment({ scores: base, buyMa: buyMaDraft, winnerIndex: winnerDraft, playersCount: players.length })
-    const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: qingShuiHuDraft, winnerIndex: winnerDraft, playersCount: players.length })
-    return applyFollowDealerAdjustment({
+    const hasQiangGang = Number.isInteger(qiangGangRobberDraft) && Number.isInteger(qiangGangTargetDraft)
+    const winnerForAdjustments = Number.isInteger(qiangGangRobberDraft) ? qiangGangRobberDraft : winnerDraft
+    const baseWinnerIndex = hasQiangGang ? null : winnerForAdjustments
+
+    const base = computeMahjongScores({ playersCount: players.length, winnerIndex: baseWinnerIndex, gangDraft, rules: state.mahjongRules })
+    const afterBuyMa = applyBuyMaAdjustment({
+      scores: base,
+      buyMa: buyMaDraft,
+      winnerIndex: winnerForAdjustments,
+      playersCount: players.length,
+      qiangGang: hasQiangGang ? { robber: qiangGangRobberDraft, target: qiangGangTargetDraft } : null,
+    })
+    const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: qingShuiHuDraft, winnerIndex: winnerForAdjustments, playersCount: players.length })
+    const afterQiangGang = applyQiangGangAdjustment({
       scores: afterQingShuiHu,
+      qiangGang: hasQiangGang ? { robber: qiangGangRobberDraft, target: qiangGangTargetDraft } : null,
+      playersCount: players.length,
+    })
+    return applyFollowDealerAdjustment({
+      scores: afterQiangGang,
       followType: followTypeDraft,
       followTarget: followTargetDraft,
       dealerIndex: dealerDraft,
@@ -362,6 +383,7 @@ function App() {
             dealer: null,
             gangs: createEmptyGangDraft(players.length),
             qingShuiHu: false,
+            qiangGang: null,
           },
         ],
         nextRoundId: session.nextRoundId + 1,
@@ -374,17 +396,28 @@ function App() {
     }
 
     const normalizedGangs = normalizeGangs(gangDraft, players.length)
-    const base = computeMahjongScores({ playersCount: players.length, winnerIndex: winnerDraft, gangDraft: normalizedGangs, rules: state.mahjongRules })
-    const afterBuyMa = applyBuyMaAdjustment({ scores: base, buyMa: buyMaDraft, winnerIndex: winnerDraft, playersCount: players.length })
-    const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: qingShuiHuDraft, winnerIndex: winnerDraft, playersCount: players.length })
+    const hasQiangGang = Number.isInteger(qiangGangRobberDraft) && Number.isInteger(qiangGangTargetDraft)
+    const winnerForAdjustments = Number.isInteger(qiangGangRobberDraft) ? qiangGangRobberDraft : winnerDraft
+    const baseWinnerIndex = hasQiangGang ? null : winnerForAdjustments
+
+    const base = computeMahjongScores({ playersCount: players.length, winnerIndex: baseWinnerIndex, gangDraft: normalizedGangs, rules: state.mahjongRules })
+    const afterBuyMa = applyBuyMaAdjustment({
+      scores: base,
+      buyMa: buyMaDraft,
+      winnerIndex: winnerForAdjustments,
+      playersCount: players.length,
+      qiangGang: hasQiangGang ? { robber: qiangGangRobberDraft, target: qiangGangTargetDraft } : null,
+    })
+    const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: qingShuiHuDraft, winnerIndex: winnerForAdjustments, playersCount: players.length })
+    const afterQiangGang = applyQiangGangAdjustment({ scores: afterQingShuiHu, qiangGang: hasQiangGang ? { robber: qiangGangRobberDraft, target: qiangGangTargetDraft } : null, playersCount: players.length })
     const finalScores = applyFollowDealerAdjustment({
-      scores: afterQingShuiHu,
+      scores: afterQiangGang,
       followType: followTypeDraft,
       followTarget: followTargetDraft,
       dealerIndex: dealerDraft,
       playersCount: players.length,
     })
-    const nextDealerDraft = Number.isInteger(winnerDraft) ? winnerDraft : dealerDraft
+    const nextDealerDraft = Number.isInteger(winnerForAdjustments) ? winnerForAdjustments : dealerDraft
 
     updateCurrentSessionState((session) => ({
       ...session,
@@ -394,7 +427,7 @@ function App() {
           id: session.nextRoundId,
           scores: finalScores,
           timestamp: Date.now(),
-          winner: winnerDraft,
+          winner: winnerForAdjustments,
           dealer: dealerDraft,
           gangs: normalizedGangs,
           isMahjongSpecial: false,
@@ -403,6 +436,10 @@ function App() {
           followType: followTypeDraft,
           followTarget: followTargetDraft,
           qingShuiHu: Boolean(qingShuiHuDraft),
+          qiangGang:
+            Number.isInteger(qiangGangRobberDraft) && Number.isInteger(qiangGangTargetDraft)
+              ? { robber: qiangGangRobberDraft, target: qiangGangTargetDraft }
+              : null,
         },
       ],
       nextRoundId: session.nextRoundId + 1,
@@ -415,6 +452,8 @@ function App() {
     setGangDraft(createEmptyGangDraft(players.length))
     setBuyMaDraft(0)
     setQingShuiHuDraft(false)
+    setQiangGangRobberDraft(null)
+    setQiangGangTargetDraft(null)
     setNewRoundScores(Array(players.length).fill(''))
   }
 
@@ -438,6 +477,8 @@ function App() {
     setEditGangDraft(normalizeGangs(round.gangs, players.length))
     setEditBuyMaDraft(Number.isFinite(round.buyMa) ? round.buyMa : 0)
     setEditQingShuiHuDraft(Boolean(round.qingShuiHu))
+    setEditQiangGangRobberDraft(Number.isInteger(round.qiangGang?.robber) ? round.qiangGang.robber : null)
+    setEditQiangGangTargetDraft(Number.isInteger(round.qiangGang?.target) ? round.qiangGang.target : null)
   }
 
   const cancelEdit = () => {
@@ -453,6 +494,8 @@ function App() {
     setEditGangDraft(createEmptyGangDraft(players.length))
     setEditBuyMaDraft(0)
     setEditQingShuiHuDraft(false)
+    setEditQiangGangRobberDraft(null)
+    setEditQiangGangTargetDraft(null)
   }
 
   const updateEditScore = (idx, value) => {
@@ -509,14 +552,30 @@ function App() {
               followType: 'none',
               followTarget: null,
               qingShuiHu: false,
+              qiangGang: null,
             }
           }
           const normalizedGangs = normalizeGangs(editGangDraft, players.length)
-          const base = computeMahjongScores({ playersCount: players.length, winnerIndex: editWinnerDraft, gangDraft: normalizedGangs, rules: state.mahjongRules })
-          const afterBuyMa = applyBuyMaAdjustment({ scores: base, buyMa: editBuyMaDraft, winnerIndex: editWinnerDraft, playersCount: players.length })
-          const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: editQingShuiHuDraft, winnerIndex: editWinnerDraft, playersCount: players.length })
-          const finalScores = applyFollowDealerAdjustment({
+          const hasQiangGang = Number.isInteger(editQiangGangRobberDraft) && Number.isInteger(editQiangGangTargetDraft)
+          const winnerForAdjustments = Number.isInteger(editQiangGangRobberDraft) ? editQiangGangRobberDraft : editWinnerDraft
+          const baseWinnerIndex = hasQiangGang ? null : winnerForAdjustments
+
+          const afterBuyMaBase = computeMahjongScores({ playersCount: players.length, winnerIndex: baseWinnerIndex, gangDraft: normalizedGangs, rules: state.mahjongRules })
+          const afterBuyMa = applyBuyMaAdjustment({
+            scores: afterBuyMaBase,
+            buyMa: editBuyMaDraft,
+            winnerIndex: winnerForAdjustments,
+            playersCount: players.length,
+            qiangGang: hasQiangGang ? { robber: editQiangGangRobberDraft, target: editQiangGangTargetDraft } : null,
+          })
+          const afterQingShuiHu = applyQingShuiHuAdjustment({ scores: afterBuyMa, qingShuiHu: editQingShuiHuDraft, winnerIndex: winnerForAdjustments, playersCount: players.length })
+          const afterQiangGang = applyQiangGangAdjustment({
             scores: afterQingShuiHu,
+            qiangGang: hasQiangGang ? { robber: editQiangGangRobberDraft, target: editQiangGangTargetDraft } : null,
+            playersCount: players.length,
+          })
+          const finalScores = applyFollowDealerAdjustment({
+            scores: afterQiangGang,
             followType: editFollowTypeDraft,
             followTarget: editFollowTargetDraft,
             dealerIndex: editDealerDraft,
@@ -527,13 +586,17 @@ function App() {
             scores: finalScores,
             isMahjongSpecial: false,
             specialNote: '',
-            winner: editWinnerDraft,
+            winner: winnerForAdjustments,
             dealer: editDealerDraft,
             gangs: normalizedGangs,
             buyMa: editBuyMaDraft,
             followType: editFollowTypeDraft,
             followTarget: editFollowTargetDraft,
             qingShuiHu: Boolean(editQingShuiHuDraft),
+            qiangGang:
+              Number.isInteger(editQiangGangRobberDraft) && Number.isInteger(editQiangGangTargetDraft)
+                ? { robber: editQiangGangRobberDraft, target: editQiangGangTargetDraft }
+                : null,
           }
         }
         const normalized = ensureLength(editScores, players.length, '').map(clampInt)
@@ -795,7 +858,22 @@ function App() {
     if (scoringMode !== 'mahjong') return []
     if (mahjongSpecial) return ensureLength(mahjongSpecialScores, players.length, '').map(clampInt)
     return computeMahjongScoresForDraft()
-  }, [scoringMode, mahjongSpecial, mahjongSpecialScores, players.length, winnerDraft, gangDraft, buyMaDraft, followTypeDraft, followTargetDraft, dealerDraft, state.mahjongRules])
+  }, [
+    scoringMode,
+    mahjongSpecial,
+    mahjongSpecialScores,
+    players.length,
+    winnerDraft,
+    gangDraft,
+    buyMaDraft,
+    followTypeDraft,
+    followTargetDraft,
+    dealerDraft,
+    state.mahjongRules,
+    qingShuiHuDraft,
+    qiangGangRobberDraft,
+    qiangGangTargetDraft,
+  ])
 
   const currentMahjongStats = useMemo(() => {
     const wins = Array(players.length).fill(0)
@@ -1048,6 +1126,8 @@ function App() {
               editGangDraft={editGangDraft}
               editBuyMaDraft={editBuyMaDraft}
               editQingShuiHuDraft={editQingShuiHuDraft}
+              editQiangGangRobberDraft={editQiangGangRobberDraft}
+              editQiangGangTargetDraft={editQiangGangTargetDraft}
               onUpdateEditScore={updateEditScore}
               onAutoBalanceEdit={autoBalanceEdit}
               onUpdateEditMahjongScore={updateEditMahjongScore}
@@ -1066,6 +1146,8 @@ function App() {
               setEditGangDraft={setEditGangDraft}
               setEditBuyMaDraft={setEditBuyMaDraft}
               setEditQingShuiHuDraft={setEditQingShuiHuDraft}
+              setEditQiangGangRobberDraft={setEditQiangGangRobberDraft}
+              setEditQiangGangTargetDraft={setEditQiangGangTargetDraft}
               mahjongRules={state.mahjongRules}
             />
 
@@ -1104,6 +1186,10 @@ function App() {
               setBuyMaDraft={setBuyMaDraft}
               qingShuiHuDraft={qingShuiHuDraft}
               setQingShuiHuDraft={setQingShuiHuDraft}
+              qiangGangRobberDraft={qiangGangRobberDraft}
+              setQiangGangRobberDraft={setQiangGangRobberDraft}
+              qiangGangTargetDraft={qiangGangTargetDraft}
+              setQiangGangTargetDraft={setQiangGangTargetDraft}
               mahjongPreviewScores={mahjongPreviewScores}
               submitNewRound={submitNewRound}
             />
