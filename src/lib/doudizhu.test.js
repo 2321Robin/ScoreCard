@@ -27,6 +27,22 @@ describe('computeDoudizhuScores', () => {
   it('clamps base/multiplier to at least 1', () => {
     expect(computeDoudizhuScores({ landlord: 0, landlordWon: true, baseScore: 0, multiplier: 0 })).toEqual([2, -1, -1])
   })
+
+  it('caps each farmer loss when landlord wins (unit 20, cap 10)', () => {
+    expect(computeDoudizhuScores({ landlord: 0, landlordWon: true, baseScore: 5, multiplier: 4, cap: 10 })).toEqual([20, -10, -10])
+  })
+
+  it('caps landlord loss and splits evenly between farmers (cap 10)', () => {
+    expect(computeDoudizhuScores({ landlord: 2, landlordWon: false, baseScore: 5, multiplier: 4, cap: 10 })).toEqual([5, 5, -10])
+  })
+
+  it('splits odd capped loss between farmers with ceil/floor', () => {
+    expect(computeDoudizhuScores({ landlord: 1, landlordWon: false, baseScore: 5, multiplier: 4, cap: 7 })).toEqual([4, -7, 3])
+  })
+
+  it('cap below unit also caps the landlord-win side', () => {
+    expect(computeDoudizhuScores({ landlord: 1, landlordWon: true, baseScore: 3, multiplier: 2, cap: 5 })).toEqual([-5, 10, -5])
+  })
 })
 
 describe('deriveDoudizhuWinners', () => {

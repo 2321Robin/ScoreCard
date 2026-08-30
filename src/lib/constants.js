@@ -24,4 +24,5 @@ export const DEFAULT_MAHJONG_RULES = {
 export const DEFAULT_DOUDIZHU_RULES = {
   baseScore: 1,
   multiplier: 1,
+  cap: 10,
 }

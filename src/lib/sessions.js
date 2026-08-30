@@ -80,6 +80,8 @@ export const createSession = ({
       const baseScore = Number.isFinite(baseScoreRaw) && baseScoreRaw >= 1 ? baseScoreRaw : 1
       const multiplierRaw = Number.parseInt(r.multiplier ?? NaN, 10)
       const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw >= 1 ? multiplierRaw : 1
+      const capRaw = Number.parseInt(r.cap ?? NaN, 10)
+      const cap = Number.isFinite(capRaw) && capRaw >= 1 ? capRaw : 10
       list.push({
         id: rid,
         scores: padded,
@@ -96,6 +98,7 @@ export const createSession = ({
         landlordWon,
         baseScore,
         multiplier,
+        cap,
       })
 
       if (!isMahjongSpecial && Number.isInteger(winner) && winner >= 0 && winner < safePlayers.length) {

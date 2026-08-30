@@ -60,6 +60,8 @@ function RoundsTable({
   setEditBaseScoreDraft,
   editMultiplierDraft,
   setEditMultiplierDraft,
+  editCapDraft,
+  setEditCapDraft,
   mahjongRules,
 }) {
   return (
@@ -98,6 +100,7 @@ function RoundsTable({
                   landlordWon: editLandlordWonDraft,
                   baseScore: editBaseScoreDraft,
                   multiplier: editMultiplierDraft,
+                  cap: editCapDraft,
                 })
               : null
             const logicalNumber = logicalRoundNumbers[rowIndex]
@@ -499,31 +502,18 @@ function RoundsTable({
                               ariaLabel="编辑地主"
                             />
                           </div>
-                          <label className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1">
                             <span>胜方</span>
-                            <div className="space-y-1 text-text">
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="radio"
-                                  name="ddz-edit-winner"
-                                  className="accent-accent"
-                                  checked={editLandlordWonDraft}
-                                  onChange={() => setEditLandlordWonDraft(true)}
-                                />
-                                <span>地主赢</span>
-                              </label>
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="radio"
-                                  name="ddz-edit-winner"
-                                  className="accent-accent"
-                                  checked={!editLandlordWonDraft}
-                                  onChange={() => setEditLandlordWonDraft(false)}
-                                />
-                                <span>农民赢</span>
-                              </label>
-                            </div>
-                          </label>
+                            <ChoiceButtons
+                              options={[
+                                { value: true, label: '地主赢' },
+                                { value: false, label: '农民赢' },
+                              ]}
+                              value={editLandlordWonDraft}
+                              onChange={setEditLandlordWonDraft}
+                              ariaLabel="编辑胜方"
+                            />
+                          </div>
                           <label className="flex flex-col gap-1">
                             <span>底分</span>
                             <input
@@ -534,19 +524,28 @@ function RoundsTable({
                               onChange={(e) => setEditBaseScoreDraft(e.target.value)}
                             />
                           </label>
-                          <label className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1">
                             <span>倍数</span>
+                            <ChoiceButtons
+                              options={[1, 2, 4, 8, 16].map((v) => ({ value: v, label: String(v) }))}
+                              value={editMultiplierDraft}
+                              onChange={(v) => setEditMultiplierDraft(Number.isInteger(v) ? v : 1)}
+                              ariaLabel="编辑倍数"
+                            />
+                          </div>
+                          <label className="flex flex-col gap-1">
+                            <span>封顶</span>
                             <input
                               type="number"
                               min={1}
                               className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                              value={editMultiplierDraft}
-                              onChange={(e) => setEditMultiplierDraft(e.target.value)}
+                              value={editCapDraft}
+                              onChange={(e) => setEditCapDraft(e.target.value)}
                             />
                           </label>
                         </div>
                         <div className="text-xs leading-5 text-muted">
-                          修改地主/胜方/底分/倍数会即时更新上方分数预览，确保仍保持和为 0。
+                          修改地主/胜方/底分/倍数/封顶会即时更新上方分数预览，确保仍保持和为 0。
                         </div>
                       </div>
                     )}
@@ -560,6 +559,7 @@ function RoundsTable({
                           <span className="rounded-full bg-panel px-2 py-1 text-muted">
                             底分×倍数：{round.baseScore ?? 1} × {round.multiplier ?? 1}
                           </span>
+                          <span className="rounded-full bg-panel px-2 py-1 text-muted">封顶：{round.cap ?? 10}</span>
                         </>
                       )}
                       {scoringMode === 'mahjong' &&

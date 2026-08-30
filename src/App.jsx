@@ -61,6 +61,7 @@ function App() {
   const [landlordWonDraft, setLandlordWonDraft] = useState(true)
   const [baseScoreDraft, setBaseScoreDraft] = useState(1)
   const [multiplierDraft, setMultiplierDraft] = useState(1)
+  const [capDraft, setCapDraft] = useState(10)
 
   // Edit state
   const [editingRoundId, setEditingRoundId] = useState(null)
@@ -83,6 +84,7 @@ function App() {
   const [editLandlordWonDraft, setEditLandlordWonDraft] = useState(true)
   const [editBaseScoreDraft, setEditBaseScoreDraft] = useState(1)
   const [editMultiplierDraft, setEditMultiplierDraft] = useState(1)
+  const [editCapDraft, setEditCapDraft] = useState(10)
 
   // View state
   const [showChart, setShowChart] = useState(true)
@@ -133,6 +135,7 @@ function App() {
     setEditLandlordWonDraft(true)
     setEditBaseScoreDraft(1)
     setEditMultiplierDraft(1)
+    setEditCapDraft(10)
   }
 
   // Reset drafts on session change
@@ -157,6 +160,7 @@ function App() {
     setLandlordWonDraft(true)
     setBaseScoreDraft(1)
     setMultiplierDraft(1)
+    setCapDraft(10)
     cancelEdit()
   }, [currentSession?.id, players.length, state.mahjongRules, scoringMode])
 
@@ -422,6 +426,7 @@ function App() {
         landlordWon: landlordWonDraft,
         baseScore: baseScoreDraft,
         multiplier: multiplierDraft,
+        cap: capDraft,
       })
       updateCurrentSessionState((session) => ({
         ...session,
@@ -437,10 +442,13 @@ function App() {
             landlordWon: Boolean(landlordWonDraft),
             baseScore: Math.max(1, clampInt(baseScoreDraft)),
             multiplier: Math.max(1, clampInt(multiplierDraft)),
+            cap: Math.max(1, clampInt(capDraft)),
           },
         ],
         nextRoundId: session.nextRoundId + 1,
       }))
+      setLandlordDraft(null)
+      setLandlordWonDraft(true)
       return
     }
 
@@ -568,6 +576,7 @@ function App() {
     setEditLandlordWonDraft(round.landlordWon !== false)
     setEditBaseScoreDraft(Number.isFinite(round.baseScore) && round.baseScore >= 1 ? round.baseScore : 1)
     setEditMultiplierDraft(Number.isFinite(round.multiplier) && round.multiplier >= 1 ? round.multiplier : 1)
+    setEditCapDraft(Number.isFinite(round.cap) && round.cap >= 1 ? round.cap : 10)
   }
 
   const updateEditScore = (idx, value) => {
@@ -617,6 +626,7 @@ function App() {
             landlordWon: editLandlordWonDraft,
             baseScore: editBaseScoreDraft,
             multiplier: editMultiplierDraft,
+            cap: editCapDraft,
           })
           return {
             ...r,
@@ -627,6 +637,7 @@ function App() {
             landlordWon: Boolean(editLandlordWonDraft),
             baseScore: Math.max(1, clampInt(editBaseScoreDraft)),
             multiplier: Math.max(1, clampInt(editMultiplierDraft)),
+            cap: Math.max(1, clampInt(editCapDraft)),
           }
         }
         if (scoringMode === 'mahjong') {
@@ -1001,8 +1012,9 @@ function App() {
       landlordWon: landlordWonDraft,
       baseScore: baseScoreDraft,
       multiplier: multiplierDraft,
+      cap: capDraft,
     })
-  }, [scoringMode, landlordDraft, landlordWonDraft, baseScoreDraft, multiplierDraft])
+  }, [scoringMode, landlordDraft, landlordWonDraft, baseScoreDraft, multiplierDraft, capDraft])
 
   const currentMahjongStats = useMemo(() => {
     const wins = Array(players.length).fill(0)
@@ -1277,6 +1289,8 @@ function App() {
               setEditBaseScoreDraft={setEditBaseScoreDraft}
               editMultiplierDraft={editMultiplierDraft}
               setEditMultiplierDraft={setEditMultiplierDraft}
+              editCapDraft={editCapDraft}
+              setEditCapDraft={setEditCapDraft}
               mahjongRules={state.mahjongRules}
             />
 
@@ -1328,6 +1342,8 @@ function App() {
               setBaseScoreDraft={setBaseScoreDraft}
               multiplierDraft={multiplierDraft}
               setMultiplierDraft={setMultiplierDraft}
+              capDraft={capDraft}
+              setCapDraft={setCapDraft}
               doudizhuPreviewScores={doudizhuPreviewScores}
               submitNewRound={submitNewRound}
             />
@@ -1378,7 +1394,6 @@ function App() {
             />
         </div>
       </main>
-
       <footer className="border-t border-line bg-panel/90">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-2 px-4 py-4 text-xs text-muted">
           <div className="text-center">

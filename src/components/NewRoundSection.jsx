@@ -50,6 +50,8 @@ function NewRoundSection({
   setBaseScoreDraft,
   multiplierDraft,
   setMultiplierDraft,
+  capDraft,
+  setCapDraft,
   doudizhuPreviewScores,
   submitNewRound,
 }) {
@@ -208,28 +210,16 @@ function NewRoundSection({
               />
               <div className="mt-3">
                 <div className="text-sm text-muted">胜方</div>
-                <div className="mt-1 space-y-1 text-sm text-text">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="ddz-winner"
-                      className="accent-accent"
-                      checked={landlordWonDraft}
-                      onChange={() => setLandlordWonDraft(true)}
-                    />
-                    <span>地主赢</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="ddz-winner"
-                      className="accent-accent"
-                      checked={!landlordWonDraft}
-                      onChange={() => setLandlordWonDraft(false)}
-                    />
-                    <span>农民赢</span>
-                  </label>
-                </div>
+                <ChoiceButtons
+                  className="mt-1"
+                  options={[
+                    { value: true, label: '地主赢' },
+                    { value: false, label: '农民赢' },
+                  ]}
+                  value={landlordWonDraft}
+                  onChange={setLandlordWonDraft}
+                  ariaLabel="胜方"
+                />
               </div>
             </div>
             <div className="rounded-lg border border-line bg-panel p-3">
@@ -245,18 +235,30 @@ function NewRoundSection({
                   onChange={(e) => setBaseScoreDraft(e.target.value)}
                 />
               </label>
+              <div className="mt-2">
+                <div className="text-sm text-muted">倍数</div>
+                <ChoiceButtons
+                  className="mt-1"
+                  options={[1, 2, 4, 8, 16].map((v) => ({ value: v, label: String(v) }))}
+                  value={multiplierDraft}
+                  onChange={(v) => setMultiplierDraft(Number.isInteger(v) ? v : 1)}
+                  ariaLabel="倍数"
+                />
+              </div>
               <label className="mt-2 flex items-center gap-2 text-sm text-muted">
-                <span className="w-12 flex-shrink-0">倍数</span>
+                <span className="w-12 flex-shrink-0">封顶</span>
                 <input
                   type="number"
                   min={1}
-                  aria-label="倍数"
+                  aria-label="封顶（每局单人最多输）"
                   className="w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                  value={multiplierDraft}
-                  onChange={(e) => setMultiplierDraft(e.target.value)}
+                  value={capDraft}
+                  onChange={(e) => setCapDraft(e.target.value)}
                 />
               </label>
-              <p className="mt-2 text-xs text-muted">地主赢：地主 +2×底分×倍数，两家农民各 −底分×倍数；农民赢则反向。</p>
+              <p className="mt-2 text-xs text-muted">
+                地主赢：地主 +2×底分×倍数，每家农民 −底分×倍数；农民赢则反向。单人输分超过封顶时按封顶结算，保持和为 0。
+              </p>
             </div>
             <div className="rounded-lg border border-line bg-panel p-3">
               <div className="text-sm text-muted">本局预览分数</div>
