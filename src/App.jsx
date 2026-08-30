@@ -6,9 +6,11 @@ import {
   STORAGE_KEY,
   defaultPlayers,
   DEFAULT_MAHJONG_RULES,
+  FIXED_PLAYERS,
 } from './lib/constants'
 import { clampInt, ensureLength, formatTimestamp, parseDateFromFilename } from './lib/helpers'
 import { computeMahjongScores, createEmptyGangDraft, deriveRoundWinners, normalizeGangs } from './lib/mahjong'
+import { computeDoudizhuScores } from './lib/doudizhu'
 import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment, applyQiangGangAdjustment } from './lib/mahjongAdjustments'
 import { csvEscape } from './lib/csv'
 import { createSession, loadInitialState, parseSessionsFromCsv } from './lib/sessions'
@@ -56,6 +58,12 @@ function App() {
   const [qiangGangRobberDraft, setQiangGangRobberDraft] = useState(null)
   const [qiangGangTargetDraft, setQiangGangTargetDraft] = useState(null)
 
+  // Doudizhu new-round state
+  const [landlordDraft, setLandlordDraft] = useState(null)
+  const [landlordWonDraft, setLandlordWonDraft] = useState(true)
+  const [baseScoreDraft, setBaseScoreDraft] = useState(1)
+  const [multiplierDraft, setMultiplierDraft] = useState(1)
+
   // Edit state
   const [editingRoundId, setEditingRoundId] = useState(null)
   const [editScores, setEditScores] = useState([])
@@ -72,9 +80,15 @@ function App() {
   const [editQiangGangRobberDraft, setEditQiangGangRobberDraft] = useState(null)
   const [editQiangGangTargetDraft, setEditQiangGangTargetDraft] = useState(null)
 
+  // Doudizhu edit state
+  const [editLandlordDraft, setEditLandlordDraft] = useState(null)
+  const [editLandlordWonDraft, setEditLandlordWonDraft] = useState(true)
+  const [editBaseScoreDraft, setEditBaseScoreDraft] = useState(1)
+  const [editMultiplierDraft, setEditMultiplierDraft] = useState(1)
+
   // View state
   const [showChart, setShowChart] = useState(true)
-  const [showCrossOverview, setShowCrossOverview] = useState(true)
+  const [showCrossOverview] = useState(true)
   const [showCrossChart, setShowCrossChart] = useState(true)
   const [showCrossTable, setShowCrossTable] = useState(true)
   const [sessionSort, setSessionSort] = useState('createdAt')
@@ -104,6 +118,27 @@ function App() {
     )
   }, [state])
 
+  const cancelEdit = () => {
+    setEditingRoundId(null)
+    setEditScores([])
+    setEditMahjongSpecial(false)
+    setEditMahjongScores([])
+    setEditMahjongSpecialNote('')
+    setEditWinnerDraft(null)
+    setEditDealerDraft(0)
+    setEditFollowTypeDraft('none')
+    setEditFollowTargetDraft(null)
+    setEditGangDraft(createEmptyGangDraft(players.length))
+    setEditBuyMaDraft(0)
+    setEditQingShuiHuDraft(false)
+    setEditQiangGangRobberDraft(null)
+    setEditQiangGangTargetDraft(null)
+    setEditLandlordDraft(null)
+    setEditLandlordWonDraft(true)
+    setEditBaseScoreDraft(1)
+    setEditMultiplierDraft(1)
+  }
+
   // Reset drafts on session change
   useEffect(() => {
     setSessionNameDraft(currentSession?.name ?? '会话 1')
@@ -122,8 +157,12 @@ function App() {
     setQingShuiHuDraft(false)
     setQiangGangRobberDraft(null)
     setQiangGangTargetDraft(null)
+    setLandlordDraft(null)
+    setLandlordWonDraft(true)
+    setBaseScoreDraft(1)
+    setMultiplierDraft(1)
     cancelEdit()
-  }, [currentSession?.id, players.length, state.mahjongRules])
+  }, [currentSession?.id, players.length, state.mahjongRules, scoringMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -173,7 +212,11 @@ function App() {
 
   const createNewSession = () => {
     const nextId = Math.max(...state.sessions.map((s) => s.id), 0) + 1
-    const session = createSession({ id: nextId, name: `会话 ${nextId}` })
+    const session = createSession({
+      id: nextId,
+      name: `会话 ${nextId}`,
+      players: currentSession?.players ?? defaultPlayers,
+    })
     setState((prev) => ({ ...prev, sessions: [...prev.sessions, session], currentSessionId: session.id }))
     historyRef.current[session.id] = { past: [], future: [] }
   }
@@ -188,16 +231,56 @@ function App() {
     }))
   }
 
+  // 固定人数模式：调整会话玩家数量并同步对局数据（截断或补位）
+  const resizeSessionPlayers = (session, count) => {
+    const current = session.players
+    let nextPlayers
+    if (current.length < count) {
+      nextPlayers = [...current]
+      for (let i = current.length; i < count; i += 1) nextPlayers.push(`玩家 ${i + 1}`)
+    } else {
+      nextPlayers = current.slice(0, count)
+    }
+    const fixIdx = (v) => (Number.isInteger(v) && v >= 0 && v < count ? v : null)
+    const nextRounds = session.rounds.map((r) => {
+      const nextScores = ensureLength(r.scores, count, 0)
+      const gangs = ensureLength(r.gangs || [], count, [])
+      const qiangGang =
+        r.qiangGang && fixIdx(r.qiangGang.robber) !== null && fixIdx(r.qiangGang.target) !== null
+          ? { robber: fixIdx(r.qiangGang.robber), target: fixIdx(r.qiangGang.target) }
+          : null
+      return {
+        ...r,
+        scores: nextScores,
+        gangs,
+        winner: fixIdx(r.winner),
+        dealer: fixIdx(r.dealer),
+        followTarget: fixIdx(r.followTarget),
+        qiangGang,
+        landlord: fixIdx(r.landlord),
+      }
+    })
+    return { ...session, players: nextPlayers, rounds: nextRounds }
+  }
+
+  const handleModeChange = (value) => {
+    const fixed = FIXED_PLAYERS[value]
+    if (fixed && players.length !== fixed) {
+      alert(value === 'mahjong' ? '麻将模式固定 4 人，已自动调整玩家数量' : '斗地主模式固定 3 人，已自动调整玩家数量')
+    }
+    updateCurrentSessionState((session) => {
+      const next = { ...session, scoringMode: value }
+      return fixed && session.players.length !== fixed ? resizeSessionPlayers(next, fixed) : next
+    })
+  }
+
   const applyTargetRounds = () => {
     updateCurrentSessionState((session) => ({ ...session, targetRounds: targetDraft }))
   }
 
-  // History (placeholder to preserve API)
-  const undo = () => {}
-  const redo = () => {}
-
   // Player management
   const addPlayer = () => {
+    if (FIXED_PLAYERS[scoringMode]) return
     updateCurrentSessionState((session) => {
       if (session.players.length >= MAX_PLAYERS) return session
       const nextPlayers = [...session.players, `玩家 ${session.players.length + 1}`]
@@ -214,6 +297,7 @@ function App() {
   }
 
   const removePlayer = (idx) => {
+    if (FIXED_PLAYERS[scoringMode]) return
     updateCurrentSessionState((session) => {
       if (session.players.length <= MIN_PLAYERS) return session
       const nextPlayers = session.players.filter((_, i) => i !== idx)
@@ -359,6 +443,38 @@ function App() {
       return
     }
 
+    if (scoringMode === 'doudizhu') {
+      if (!Number.isInteger(landlordDraft)) {
+        alert('请选择地主')
+        return
+      }
+      const finalScores = computeDoudizhuScores({
+        landlord: landlordDraft,
+        landlordWon: landlordWonDraft,
+        baseScore: baseScoreDraft,
+        multiplier: multiplierDraft,
+      })
+      updateCurrentSessionState((session) => ({
+        ...session,
+        rounds: [
+          ...session.rounds,
+          {
+            id: session.nextRoundId,
+            scores: finalScores,
+            timestamp: Date.now(),
+            isMahjongSpecial: false,
+            specialNote: '',
+            landlord: landlordDraft,
+            landlordWon: Boolean(landlordWonDraft),
+            baseScore: Math.max(1, clampInt(baseScoreDraft)),
+            multiplier: Math.max(1, clampInt(multiplierDraft)),
+          },
+        ],
+        nextRoundId: session.nextRoundId + 1,
+      }))
+      return
+    }
+
     if (mahjongSpecial) {
       const normalized = ensureLength(mahjongSpecialScores, players.length, '').map(clampInt)
       const sum = normalized.reduce((acc, v) => acc + v, 0)
@@ -479,23 +595,10 @@ function App() {
     setEditQingShuiHuDraft(Boolean(round.qingShuiHu))
     setEditQiangGangRobberDraft(Number.isInteger(round.qiangGang?.robber) ? round.qiangGang.robber : null)
     setEditQiangGangTargetDraft(Number.isInteger(round.qiangGang?.target) ? round.qiangGang.target : null)
-  }
-
-  const cancelEdit = () => {
-    setEditingRoundId(null)
-    setEditScores([])
-    setEditMahjongSpecial(false)
-    setEditMahjongScores([])
-    setEditMahjongSpecialNote('')
-    setEditWinnerDraft(null)
-    setEditDealerDraft(0)
-    setEditFollowTypeDraft('none')
-    setEditFollowTargetDraft(null)
-    setEditGangDraft(createEmptyGangDraft(players.length))
-    setEditBuyMaDraft(0)
-    setEditQingShuiHuDraft(false)
-    setEditQiangGangRobberDraft(null)
-    setEditQiangGangTargetDraft(null)
+    setEditLandlordDraft(Number.isInteger(round.landlord) ? round.landlord : null)
+    setEditLandlordWonDraft(round.landlordWon !== false)
+    setEditBaseScoreDraft(Number.isFinite(round.baseScore) && round.baseScore >= 1 ? round.baseScore : 1)
+    setEditMultiplierDraft(Number.isFinite(round.multiplier) && round.multiplier >= 1 ? round.multiplier : 1)
   }
 
   const updateEditScore = (idx, value) => {
@@ -532,9 +635,31 @@ function App() {
 
   const saveEdit = () => {
     if (!editingRoundId) return
+    if (scoringMode === 'doudizhu' && !Number.isInteger(editLandlordDraft)) {
+      alert('请选择地主')
+      return
+    }
     updateCurrentSessionState((session) => {
       const nextRounds = session.rounds.map((r) => {
         if (r.id !== editingRoundId) return r
+        if (scoringMode === 'doudizhu') {
+          const finalScores = computeDoudizhuScores({
+            landlord: editLandlordDraft,
+            landlordWon: editLandlordWonDraft,
+            baseScore: editBaseScoreDraft,
+            multiplier: editMultiplierDraft,
+          })
+          return {
+            ...r,
+            scores: finalScores,
+            isMahjongSpecial: false,
+            specialNote: '',
+            landlord: editLandlordDraft,
+            landlordWon: Boolean(editLandlordWonDraft),
+            baseScore: Math.max(1, clampInt(editBaseScoreDraft)),
+            multiplier: Math.max(1, clampInt(editMultiplierDraft)),
+          }
+        }
         if (scoringMode === 'mahjong') {
           if (editMahjongSpecial) {
             const normalized = ensureLength(editMahjongScores, players.length, '').map(clampInt)
@@ -748,7 +873,7 @@ function App() {
 
       session.rounds.forEach((round) => {
         const winners = deriveRoundWinners(round)
-        const isMahjongRound = Array.isArray(round.gangs) || Number.isInteger(round.winner)
+        const isMahjongRound = session.scoringMode === 'mahjong' && (Array.isArray(round.gangs) || Number.isInteger(round.winner))
         winners.forEach((w) => {
           const globalIdx = session.players[w] ? allPlayers.indexOf(session.players[w]) : -1
           if (globalIdx !== -1) {
@@ -773,6 +898,7 @@ function App() {
       return {
         id: session.id,
         name: session.name,
+        players: session.players,
         roundsCount: session.rounds.length,
         createdAt: session.createdAt,
         totals: perPlayerTotals,
@@ -802,15 +928,38 @@ function App() {
     return filtered.length > 0 ? filtered : sortedSessions
   }, [sortedSessions, sessionFilterMode, selectedSessionIds])
 
+  // 仅保留筛选后会话中出现的玩家（跨会话表格/折线图都只显示这些玩家）
+  const crossPlayers = useMemo(() => {
+    const names = []
+    filteredSessions.forEach((s) => {
+      s.players.forEach((p) => {
+        if (p && !names.includes(p)) names.push(p)
+      })
+    })
+    return names
+  }, [filteredSessions])
+
   const crossSessionAggregate = useMemo(() => {
     const base = filteredSessions
-    const totalsAgg = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.totals[idx] ?? 0), 0))
-    const winsAgg = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.wins?.[idx] ?? 0), 0))
+    const totalsAgg = crossPlayers.map((p) => {
+      const gi = allPlayers.indexOf(p)
+      return base.reduce((acc, s) => acc + (gi === -1 ? 0 : s.totals[gi] ?? 0), 0)
+    })
+    const winsAgg = crossPlayers.map((p) => {
+      const gi = allPlayers.indexOf(p)
+      return base.reduce((acc, s) => acc + (gi === -1 ? 0 : s.wins?.[gi] ?? 0), 0)
+    })
     const roundsCount = base.reduce((acc, s) => acc + s.roundsCount, 0)
-    const huCounts = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.huCounts?.[idx] ?? 0), 0))
-    const gangCounts = allPlayers.map((_, idx) => base.reduce((acc, s) => acc + (s.gangCounts?.[idx] ?? 0), 0))
+    const huCounts = crossPlayers.map((p) => {
+      const gi = allPlayers.indexOf(p)
+      return base.reduce((acc, s) => acc + (gi === -1 ? 0 : s.huCounts?.[gi] ?? 0), 0)
+    })
+    const gangCounts = crossPlayers.map((p) => {
+      const gi = allPlayers.indexOf(p)
+      return base.reduce((acc, s) => acc + (gi === -1 ? 0 : s.gangCounts?.[gi] ?? 0), 0)
+    })
     return { totals: totalsAgg, wins: winsAgg, roundsCount, huCounts, gangCounts }
-  }, [allPlayers, filteredSessions])
+  }, [crossPlayers, allPlayers, filteredSessions])
 
   const getSessionMetricValues = (session, metric) => {
     if (metric === 'win') return session.wins ?? []
@@ -820,16 +969,17 @@ function App() {
   }
 
   const crossCumulativeSeries = useMemo(() => {
-    const series = allPlayers.map(() => [{ idx: 0, value: 0 }])
+    const series = crossPlayers.map(() => [{ idx: 0, value: 0 }])
     filteredSessions.forEach((session, idx) => {
-      allPlayers.forEach((p, pi) => {
+      crossPlayers.forEach((p, pi) => {
+        const gi = allPlayers.indexOf(p)
         const metricValues = getSessionMetricValues(session, overviewMetric)
-        const value = metricValues[pi] ?? 0
+        const value = gi === -1 ? 0 : metricValues[gi] ?? 0
         series[pi].push({ idx: idx + 1, value, label: session.name })
       })
     })
     return series
-  }, [allPlayers, filteredSessions, overviewMetric])
+  }, [crossPlayers, allPlayers, filteredSessions, overviewMetric])
 
   const cumulativeSeries = useMemo(() => {
     const series = players.map(() => [{ round: 0, value: 0 }])
@@ -875,6 +1025,16 @@ function App() {
     qiangGangTargetDraft,
   ])
 
+  const doudizhuPreviewScores = useMemo(() => {
+    if (scoringMode !== 'doudizhu') return []
+    return computeDoudizhuScores({
+      landlord: landlordDraft,
+      landlordWon: landlordWonDraft,
+      baseScore: baseScoreDraft,
+      multiplier: multiplierDraft,
+    })
+  }, [scoringMode, landlordDraft, landlordWonDraft, baseScoreDraft, multiplierDraft])
+
   const currentMahjongStats = useMemo(() => {
     const wins = Array(players.length).fill(0)
     const huCounts = Array(players.length).fill(0)
@@ -903,6 +1063,22 @@ function App() {
     return { wins, huCounts, gangCounts }
   }, [rounds, players.length])
 
+  const doudizhuStats = useMemo(() => {
+    const landlordWins = Array(players.length).fill(0)
+    const farmerWins = Array(players.length).fill(0)
+    rounds.forEach((round) => {
+      if (!Number.isInteger(round.landlord) || round.landlord < 0 || round.landlord >= players.length) return
+      if (round.landlordWon !== false) {
+        landlordWins[round.landlord] += 1
+      } else {
+        for (let i = 0; i < players.length; i += 1) {
+          if (i !== round.landlord) farmerWins[i] += 1
+        }
+      }
+    })
+    return { landlordWins, farmerWins }
+  }, [rounds, players.length])
+
   const logicalRoundNumbers = useMemo(() => {
     let idx = 0
     return rounds.map((r) => {
@@ -922,8 +1098,8 @@ function App() {
   ]
 
   const tocTop = Math.max(headerHeight + 8, 72)
-  const tocHeight = `calc(100vh - ${Math.max(tocTop + 16, 160)}px)`
-  const mainClasses = `mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text ${isTocOpen ? 'lg:pl-[300px]' : ''}`
+  const tocHeight = `calc(100vh - ${tocTop + 16}px)`
+  const mainClasses = `mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text`
 
   return (
     <div className="min-h-screen bg-surface text-text">
@@ -1016,10 +1192,11 @@ function App() {
                 <select
                   className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
                   value={scoringMode}
-                  onChange={(e) => updateCurrentSessionState((prev) => ({ ...prev, scoringMode: e.target.value }))}
+                  onChange={(e) => handleModeChange(e.target.value)}
                 >
                   <option value="standard">积分模式</option>
                   <option value="mahjong">麻将模式</option>
+                  <option value="doudizhu">斗地主模式</option>
                 </select>
                 <span className="ml-2 text-muted">目录</span>
                 <button
@@ -1092,8 +1269,8 @@ function App() {
           {isTocOpen ? (
             <aside
               id="page-toc-panel"
-              className="sticky z-30 self-start lg:fixed lg:w-[260px] lg:overflow-y-auto lg:pr-3"
-              style={{ left: 'max(16px, calc((100vw - 1100px) / 2))', top: tocTop, height: tocHeight }}
+              className="fixed z-30 w-[260px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl"
+              style={{ left: 'max(16px, calc((100vw - 1100px) / 2))', top: tocTop, maxHeight: tocHeight }}
             >
               <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
             </aside>
@@ -1105,6 +1282,10 @@ function App() {
               onAddPlayer={addPlayer}
               onRemovePlayer={removePlayer}
               onRenamePlayer={renamePlayer}
+              locked={Boolean(FIXED_PLAYERS[scoringMode])}
+              lockedHint={
+                scoringMode === 'mahjong' ? '麻将模式固定 4 人，不可增删玩家。' : scoringMode === 'doudizhu' ? '斗地主模式固定 3 人，不可增删玩家。' : ''
+              }
             />
 
             <RoundsTable
@@ -1138,6 +1319,7 @@ function App() {
               onDeleteRound={deleteRound}
               onCopyPrevious={copyPrevious}
               setEditMahjongSpecial={setEditMahjongSpecial}
+              setEditMahjongScores={setEditMahjongScores}
               setEditMahjongSpecialNote={setEditMahjongSpecialNote}
               setEditWinnerDraft={setEditWinnerDraft}
               setEditDealerDraft={setEditDealerDraft}
@@ -1148,6 +1330,14 @@ function App() {
               setEditQingShuiHuDraft={setEditQingShuiHuDraft}
               setEditQiangGangRobberDraft={setEditQiangGangRobberDraft}
               setEditQiangGangTargetDraft={setEditQiangGangTargetDraft}
+              editLandlordDraft={editLandlordDraft}
+              setEditLandlordDraft={setEditLandlordDraft}
+              editLandlordWonDraft={editLandlordWonDraft}
+              setEditLandlordWonDraft={setEditLandlordWonDraft}
+              editBaseScoreDraft={editBaseScoreDraft}
+              setEditBaseScoreDraft={setEditBaseScoreDraft}
+              editMultiplierDraft={editMultiplierDraft}
+              setEditMultiplierDraft={setEditMultiplierDraft}
               mahjongRules={state.mahjongRules}
             />
 
@@ -1191,6 +1381,15 @@ function App() {
               qiangGangTargetDraft={qiangGangTargetDraft}
               setQiangGangTargetDraft={setQiangGangTargetDraft}
               mahjongPreviewScores={mahjongPreviewScores}
+              landlordDraft={landlordDraft}
+              setLandlordDraft={setLandlordDraft}
+              landlordWonDraft={landlordWonDraft}
+              setLandlordWonDraft={setLandlordWonDraft}
+              baseScoreDraft={baseScoreDraft}
+              setBaseScoreDraft={setBaseScoreDraft}
+              multiplierDraft={multiplierDraft}
+              setMultiplierDraft={setMultiplierDraft}
+              doudizhuPreviewScores={doudizhuPreviewScores}
               submitNewRound={submitNewRound}
             />
 
@@ -1198,6 +1397,7 @@ function App() {
               players={players}
               totals={totals}
               currentMahjongStats={currentMahjongStats}
+              doudizhuStats={doudizhuStats}
               leader={leader}
               scoringMode={scoringMode}
             />
@@ -1225,6 +1425,7 @@ function App() {
               setSelectedSessionIds={setSelectedSessionIds}
               sortedSessions={sortedSessions}
               filteredSessions={filteredSessions}
+              players={crossPlayers}
               allPlayers={allPlayers}
               showCrossChart={showCrossChart}
               setShowCrossChart={setShowCrossChart}
@@ -1245,7 +1446,7 @@ function App() {
           <div className="text-center">
             Copyright © 2026 - Present{' '}
             <a
-              href="https://resume.w2321.top"
+              href="https://score.w2321.top"
               target="_blank"
               rel="noreferrer"
               className="underline decoration-line hover:text-text"

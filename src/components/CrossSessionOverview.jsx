@@ -12,6 +12,7 @@ function CrossSessionOverview({
   setSelectedSessionIds,
   sortedSessions,
   filteredSessions,
+  players,
   allPlayers,
   showCrossChart,
   setShowCrossChart,
@@ -154,11 +155,11 @@ function CrossSessionOverview({
       {showCrossTable && (
         <div className="overflow-auto rounded-lg border border-line">
           <div className="min-w-[720px]">
-            <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: allPlayers.length }}>
+            <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: players.length }}>
               <div>会话</div>
               <div>局数</div>
               <div>创建时间</div>
-              {allPlayers.map((p) => (
+              {players.map((p) => (
                 <div key={p} className="text-center">
                   {p}
                 </div>
@@ -168,7 +169,7 @@ function CrossSessionOverview({
             {filteredSessions.map((session) => {
               const metricValues = metricValuesFor(session)
               return (
-                <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: allPlayers.length }}>
+                <div key={session.id} className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm" style={{ ['--player-count']: players.length }}>
                   <div className="truncate" title={session.name}>
                     {session.name}
                   </div>
@@ -176,10 +177,11 @@ function CrossSessionOverview({
                   <div className="text-muted text-xs" title={new Date(session.createdAt || 0).toLocaleString()}>
                     {new Date(session.createdAt || 0).toLocaleDateString()}
                   </div>
-                  {allPlayers.map((_, idx) => {
-                    const value = metricValues[idx] ?? 0
+                  {players.map((p) => {
+                    const gi = allPlayers.indexOf(p)
+                    const value = gi === -1 ? 0 : metricValues[gi] ?? 0
                     return (
-                      <div key={idx} className="text-center">
+                      <div key={p} className="text-center">
                         {value === 0 ? '—' : value}
                       </div>
                     )
@@ -191,14 +193,14 @@ function CrossSessionOverview({
             {(() => {
               const aggregateValues = metricValuesFor(crossSessionAggregate)
               return (
-                <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: allPlayers.length }}>
+                <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center border-t border-line bg-panel px-3 py-2 text-sm font-semibold" style={{ ['--player-count']: players.length }}>
                   <div className="truncate">合计</div>
                   <div>{crossSessionAggregate.roundsCount}</div>
                   <div className="text-muted text-xs">—</div>
-                  {allPlayers.map((_, idx) => {
+                  {players.map((p, idx) => {
                     const value = aggregateValues[idx] ?? 0
                     return (
-                      <div key={idx} className="text-center">
+                      <div key={p} className="text-center">
                         {value === 0 ? '—' : value}
                       </div>
                     )
@@ -210,7 +212,7 @@ function CrossSessionOverview({
         </div>
       )}
 
-      {showCrossChart && allPlayers.length > 0 && (
+      {showCrossChart && players.length > 0 && (
         <div className="mt-4 space-y-3">
           {filteredSessions.length === 0 ? (
             <p className="text-sm text-muted">暂无会话数据，添加对局后可查看累计走势。</p>
@@ -268,7 +270,7 @@ function CrossSessionOverview({
             </div>
           )}
           <div className="flex flex-wrap gap-3 text-xs text-muted">
-            {allPlayers.map((name, idx) => {
+            {players.map((name, idx) => {
               const colors = ['#7fb37a', '#e25b5b', '#6f7664', '#3b82f6', '#f59e0b', '#8b5cf6', '#0ea5e9', '#f97316']
               return (
                 <span key={name} className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1">

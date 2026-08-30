@@ -1,4 +1,4 @@
-function TotalsSection({ players, totals, currentMahjongStats, leader, scoringMode, sectionId = 'totals' }) {
+function TotalsSection({ players, totals, currentMahjongStats, doudizhuStats = { landlordWins: [], farmerWins: [] }, leader, scoringMode, sectionId = 'totals' }) {
   return (
     <section id={sectionId} className="grid gap-4 lg:grid-cols-[2fr_1fr]">
       <div className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
@@ -21,6 +21,9 @@ function TotalsSection({ players, totals, currentMahjongStats, leader, scoringMo
                 <div className="mt-1 text-2xl font-semibold">{score}</div>
                 {scoringMode === 'mahjong' && (currentMahjongStats.huCounts[idx] > 0 || currentMahjongStats.gangCounts[idx] > 0) && (
                   <div className="mt-1 text-xs text-muted">胡 {currentMahjongStats.huCounts[idx]} · 杠 {currentMahjongStats.gangCounts[idx]}</div>
+                )}
+                {scoringMode === 'doudizhu' && (doudizhuStats.landlordWins[idx] > 0 || doudizhuStats.farmerWins[idx] > 0) && (
+                  <div className="mt-1 text-xs text-muted">地主赢 {doudizhuStats.landlordWins[idx]} · 农民赢 {doudizhuStats.farmerWins[idx]}</div>
                 )}
                 {scoringMode === 'standard' && wins > 0 && (
                   <div className="mt-1 text-xs text-muted">赢 {wins} 局</div>

@@ -1,5 +1,6 @@
 import { clampInt, ensureLength } from '../lib/helpers'
 import { computeMahjongScores, normalizeGangs } from '../lib/mahjong'
+import { computeDoudizhuScores } from '../lib/doudizhu'
 import {
   applyBuyMaAdjustment,
   applyFollowDealerAdjustment,
@@ -39,6 +40,7 @@ function RoundsTable({
   onDeleteRound,
   onCopyPrevious,
   setEditMahjongSpecial,
+  setEditMahjongScores,
   setEditMahjongSpecialNote,
   setEditWinnerDraft,
   setEditDealerDraft,
@@ -49,6 +51,14 @@ function RoundsTable({
   setEditQingShuiHuDraft,
   setEditQiangGangRobberDraft,
   setEditQiangGangTargetDraft,
+  editLandlordDraft,
+  setEditLandlordDraft,
+  editLandlordWonDraft,
+  setEditLandlordWonDraft,
+  editBaseScoreDraft,
+  setEditBaseScoreDraft,
+  editMultiplierDraft,
+  setEditMultiplierDraft,
   mahjongRules,
 }) {
   return (
@@ -80,6 +90,15 @@ function RoundsTable({
             const isEditing = editingRoundId === round.id
             const editingMahjong = isEditing && scoringMode === 'mahjong'
             const editingMahjongSpecial = editingMahjong && editMahjongSpecial
+            const editingDoudizhu = isEditing && scoringMode === 'doudizhu'
+            const doudizhuEditScores = editingDoudizhu
+              ? computeDoudizhuScores({
+                  landlord: editLandlordDraft,
+                  landlordWon: editLandlordWonDraft,
+                  baseScore: editBaseScoreDraft,
+                  multiplier: editMultiplierDraft,
+                })
+              : null
             const logicalNumber = logicalRoundNumbers[rowIndex]
             const rowLabel = logicalNumber ? `第 ${logicalNumber} 局` : '特殊补充局'
             const mahjongEditScores = editingMahjong
@@ -173,6 +192,11 @@ function RoundsTable({
                                   <div className="text-xs">由胡/杠自动计算</div>
                                 </div>
                               )
+                            ) : editingDoudizhu ? (
+                              <div className="flex flex-col items-center justify-center gap-1 text-sm text-muted" aria-label={`${name} 当前计算分值 ${doudizhuEditScores[playerIndex] ?? 0}`}>
+                                <div className="text-lg font-semibold text-text">{doudizhuEditScores[playerIndex] ?? 0}</div>
+                                <div className="text-xs">由地主/胜方自动计算</div>
+                              </div>
                             ) : isEditing ? (
                               <div className="flex flex-col gap-2 text-sm text-muted">
                                 <label className="sr-only" htmlFor={`score-${round.id}-${playerIndex}`}>
@@ -512,9 +536,91 @@ function RoundsTable({
                         </div>
                       </div>
                     )}
+                    {editingDoudizhu && (
+                      <div className="space-y-3 rounded-lg border border-line bg-panel p-3 text-sm text-muted">
+                        <div className="font-medium text-text">编辑斗地主结果</div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <label className="flex flex-col gap-1">
+                            <span>地主</span>
+                            <select
+                              className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                              value={editLandlordDraft ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                                setEditLandlordDraft(Number.isFinite(v) ? v : null)
+                              }}
+                            >
+                              <option value="">选择地主</option>
+                              {players.map((name, idx) => (
+                                <option key={name} value={idx}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span>胜方</span>
+                            <div className="space-y-1 text-text">
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name="ddz-edit-winner"
+                                  className="accent-accent"
+                                  checked={editLandlordWonDraft}
+                                  onChange={() => setEditLandlordWonDraft(true)}
+                                />
+                                <span>地主赢</span>
+                              </label>
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name="ddz-edit-winner"
+                                  className="accent-accent"
+                                  checked={!editLandlordWonDraft}
+                                  onChange={() => setEditLandlordWonDraft(false)}
+                                />
+                                <span>农民赢</span>
+                              </label>
+                            </div>
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span>底分</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                              value={editBaseScoreDraft}
+                              onChange={(e) => setEditBaseScoreDraft(e.target.value)}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span>倍数</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                              value={editMultiplierDraft}
+                              onChange={(e) => setEditMultiplierDraft(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="text-xs leading-5 text-muted">
+                          修改地主/胜方/底分/倍数会即时更新上方分数预览，确保仍保持和为 0。
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted" aria-live="polite">
                       {invalid && <span className="rounded-full bg-red-100 px-2 py-1 text-danger">需平衡到 0</span>}
                       {round.isMahjongSpecial && <span className="rounded-full bg-accent/10 px-2 py-1 text-accent">特殊局</span>}
+                      {scoringMode === 'doudizhu' && !round.isMahjongSpecial && Number.isInteger(round.landlord) && (
+                        <>
+                          <span className="rounded-full bg-panel px-2 py-1 text-muted">地主：{players[round.landlord] || '—'}</span>
+                          <span className="rounded-full bg-panel px-2 py-1 text-muted">胜方：{round.landlordWon !== false ? '地主' : '农民'}</span>
+                          <span className="rounded-full bg-panel px-2 py-1 text-muted">
+                            底分×倍数：{round.baseScore ?? 1} × {round.multiplier ?? 1}
+                          </span>
+                        </>
+                      )}
                       {scoringMode === 'mahjong' &&
                         !round.isMahjongSpecial &&
                         Number.isInteger(round.dealer) &&

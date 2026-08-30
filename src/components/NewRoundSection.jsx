@@ -41,6 +41,15 @@ function NewRoundSection({
   qiangGangTargetDraft,
   setQiangGangTargetDraft,
   mahjongPreviewScores,
+  landlordDraft,
+  setLandlordDraft,
+  landlordWonDraft,
+  setLandlordWonDraft,
+  baseScoreDraft,
+  setBaseScoreDraft,
+  multiplierDraft,
+  setMultiplierDraft,
+  doudizhuPreviewScores,
   submitNewRound,
 }) {
   return (
@@ -83,6 +92,18 @@ function NewRoundSection({
               >
                 自动平衡
               </button>
+              <button
+                className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+                onClick={submitNewRound}
+              >
+                添加本局
+              </button>
+            </div>
+          </div>
+        ) : scoringMode === 'doudizhu' ? (
+          <div className="flex flex-col gap-2 text-sm sm:items-end">
+            <div className="text-xs text-muted sm:text-right">底分 × 倍数自动结算，每局和为 0</div>
+            <div className="flex flex-wrap gap-2">
               <button
                 className="rounded-lg bg-accent px-3 py-2 font-semibold text-text hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
                 onClick={submitNewRound}
@@ -170,6 +191,95 @@ function NewRoundSection({
               </div>
             </div>
           ))}
+        </div>
+      ) : scoringMode === 'doudizhu' ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            <div className="rounded-lg border border-line bg-panel p-3">
+              <div className="text-sm text-muted">地主</div>
+              <select
+                className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                value={landlordDraft ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                  setLandlordDraft(Number.isFinite(v) ? v : null)
+                }}
+              >
+                <option value="">选择地主</option>
+                {players.map((name, idx) => (
+                  <option key={name} value={idx}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-3">
+                <div className="text-sm text-muted">胜方</div>
+                <div className="mt-1 space-y-1 text-sm text-text">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="ddz-winner"
+                      className="accent-accent"
+                      checked={landlordWonDraft}
+                      onChange={() => setLandlordWonDraft(true)}
+                    />
+                    <span>地主赢</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="ddz-winner"
+                      className="accent-accent"
+                      checked={!landlordWonDraft}
+                      onChange={() => setLandlordWonDraft(false)}
+                    />
+                    <span>农民赢</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-line bg-panel p-3">
+              <div className="text-sm text-muted">计分参数</div>
+              <label className="mt-2 flex items-center gap-2 text-sm text-muted">
+                <span className="w-12 flex-shrink-0">底分</span>
+                <input
+                  type="number"
+                  min={1}
+                  aria-label="底分"
+                  className="w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                  value={baseScoreDraft}
+                  onChange={(e) => setBaseScoreDraft(e.target.value)}
+                />
+              </label>
+              <label className="mt-2 flex items-center gap-2 text-sm text-muted">
+                <span className="w-12 flex-shrink-0">倍数</span>
+                <input
+                  type="number"
+                  min={1}
+                  aria-label="倍数"
+                  className="w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                  value={multiplierDraft}
+                  onChange={(e) => setMultiplierDraft(e.target.value)}
+                />
+              </label>
+              <p className="mt-2 text-xs text-muted">地主赢：地主 +2×底分×倍数，两家农民各 −底分×倍数；农民赢则反向。</p>
+            </div>
+            <div className="rounded-lg border border-line bg-panel p-3">
+              <div className="text-sm text-muted">本局预览分数</div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                {players.map((name, idx) => (
+                  <div key={name} className="rounded-md border border-line bg-panel px-2 py-2">
+                    <div className="text-muted">{name}</div>
+                    <div className="text-lg font-semibold text-text">{doudizhuPreviewScores[idx] ?? 0}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span className="rounded-full bg-accent/10 px-2 py-1 text-accent">固定 3 人</span>
+            <span>斗地主模式固定 3 人，分数由地主/胜方/底分/倍数自动结算。</span>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

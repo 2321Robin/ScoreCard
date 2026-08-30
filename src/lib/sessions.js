@@ -3,6 +3,11 @@ import { clampInt, ensureLength } from './helpers'
 import { createEmptyGangDraft } from './mahjong'
 import { parseImportedCsvV1, splitCsvLine } from './csv'
 
+const normalizeScoringMode = (mode) => {
+  if (mode === 'mahjong' || mode === 'doudizhu') return mode
+  return 'standard'
+}
+
 export const createSession = ({
   id,
   name,
@@ -67,7 +72,31 @@ export const createSession = ({
               : 0
       const tsRaw = Number.isFinite(r.timestamp) ? r.timestamp : Date.parse(r.timestamp) || null
       const timestamp = Number.isFinite(tsRaw) ? tsRaw : Date.now()
-      list.push({ id: rid, scores: padded, gangs, winner, dealer, timestamp, isMahjongSpecial, specialNote, buyMa, followType, followTarget })
+      const landlordRaw = Number.parseInt(r.landlord ?? NaN, 10)
+      const landlord =
+        Number.isInteger(landlordRaw) && landlordRaw >= 0 && landlordRaw < safePlayers.length ? landlordRaw : null
+      const landlordWon = r.landlordWon !== false
+      const baseScoreRaw = Number.parseInt(r.baseScore ?? NaN, 10)
+      const baseScore = Number.isFinite(baseScoreRaw) && baseScoreRaw >= 1 ? baseScoreRaw : 1
+      const multiplierRaw = Number.parseInt(r.multiplier ?? NaN, 10)
+      const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw >= 1 ? multiplierRaw : 1
+      list.push({
+        id: rid,
+        scores: padded,
+        gangs,
+        winner,
+        dealer,
+        timestamp,
+        isMahjongSpecial,
+        specialNote,
+        buyMa,
+        followType,
+        followTarget,
+        landlord,
+        landlordWon,
+        baseScore,
+        multiplier,
+      })
 
       if (!isMahjongSpecial && Number.isInteger(winner) && winner >= 0 && winner < safePlayers.length) {
         lastWinner = winner
@@ -86,7 +115,7 @@ export const createSession = ({
     rounds: normalizedRounds,
     nextRoundId: typeof nextRoundId === 'number' && nextRoundId > maxId ? nextRoundId : maxId + 1,
     targetRounds: typeof targetRounds === 'number' || typeof targetRounds === 'string' ? targetRounds : '',
-    scoringMode: scoringMode === 'mahjong' ? 'mahjong' : 'standard',
+    scoringMode: normalizeScoringMode(scoringMode),
     createdAt: typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : Date.now(),
   }
 }
@@ -266,7 +295,7 @@ export const parseSessionsFromCsv = (text) => {
   if (version !== '2') {
     try {
       return tryParseSingleFlexible(text)
-    } catch (err) {
+    } catch {
       const single = parseImportedCsvV1(text)
       const session = createSession({
         id: 1,

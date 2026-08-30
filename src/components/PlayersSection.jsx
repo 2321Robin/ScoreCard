@@ -1,17 +1,17 @@
 import { MIN_PLAYERS, MAX_PLAYERS } from '../lib/constants'
 
-function PlayersSection({ players, onAddPlayer, onRemovePlayer, onRenamePlayer, sectionId = 'players' }) {
+function PlayersSection({ players, onAddPlayer, onRemovePlayer, onRenamePlayer, locked = false, lockedHint = '', sectionId = 'players' }) {
   return (
     <section id={sectionId} className="rounded-xl border border-line bg-panel/90 p-4 shadow-lg shadow-[rgba(0,0,0,0.08)]">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">玩家</h2>
-          <p className="text-sm text-muted">默认 4 人，最多 8 人；可重命名，至少保留 2 人。</p>
+          <p className="text-sm text-muted">{locked ? lockedHint : '默认 4 人，最多 8 人；可重命名，至少保留 2 人。'}</p>
         </div>
         <button
           className="rounded-lg border border-line px-3 py-2 text-sm text-text hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
           onClick={onAddPlayer}
-          disabled={players.length >= MAX_PLAYERS}
+          disabled={locked || players.length >= MAX_PLAYERS}
         >
           添加玩家
         </button>
@@ -28,7 +28,7 @@ function PlayersSection({ players, onAddPlayer, onRemovePlayer, onRenamePlayer, 
             <button
               className="text-xs text-muted hover:text-text disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
               onClick={() => onRemovePlayer(idx)}
-              disabled={players.length <= MIN_PLAYERS}
+              disabled={locked || players.length <= MIN_PLAYERS}
               title="删除玩家"
             >
               删除
@@ -36,6 +36,7 @@ function PlayersSection({ players, onAddPlayer, onRemovePlayer, onRenamePlayer, 
           </div>
         ))}
       </div>
+      {locked && <p className="mt-2 text-xs text-muted">当前模式固定人数，不可增删玩家（可重命名）。</p>}
     </section>
   )
 }
