@@ -128,4 +128,39 @@ describe('App', () => {
     expect(within(overview).getAllByText('玩家 B').length).toBeGreaterThan(0)
     expect(within(overview).queryByText('玩家 D')).not.toBeInTheDocument()
   })
+
+  it('cross-session table shows 0 for participants and dash for non-participants', () => {
+    const now = Date.now()
+    const sessions = [
+      {
+        id: 1,
+        name: '会话 1',
+        players: ['玩家 A', '玩家 B', '玩家 C'],
+        rounds: [{ id: 1, scores: [1, -1, 0], timestamp: now - 2000 }],
+        nextRoundId: 2,
+        targetRounds: '',
+        scoringMode: 'standard',
+        createdAt: now - 2000,
+      },
+      {
+        id: 2,
+        name: '会话 2',
+        players: ['玩家 A', '玩家 D'],
+        rounds: [{ id: 1, scores: [-2, 2], timestamp: now - 1000 }],
+        nextRoundId: 2,
+        targetRounds: '',
+        scoringMode: 'standard',
+        createdAt: now - 1000,
+      },
+    ]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessions, currentSessionId: 1 }))
+
+    render(<App />)
+
+    const overview = document.getElementById('cross-overview')
+    // 玩家 C 参与了会话 1 且净值为 0 → 表格中显示 0（而非 —）
+    expect(within(overview).getAllByText('0').length).toBeGreaterThanOrEqual(1)
+    // 未参与某会话的玩家（如会话 2 中的 B、C）显示 —，且合计行创建时间列也为 —
+    expect(within(overview).getAllByText('—').length).toBeGreaterThanOrEqual(1)
+  })
 })

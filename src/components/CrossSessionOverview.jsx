@@ -153,7 +153,8 @@ function CrossSessionOverview({
       <div className="mb-2 text-xs uppercase tracking-wide text-muted">当前指标：{metricLabel}</div>
 
       {showCrossTable && (
-        <div className="overflow-auto rounded-lg border border-line">
+        <>
+          <div className="overflow-auto rounded-lg border border-line">
           <div className="min-w-[720px]">
             <div className="grid grid-cols-[140px_100px_140px_repeat(var(--player-count),120px)] items-center bg-panel px-3 py-2 text-sm font-semibold uppercase tracking-wide text-muted" style={{ ['--player-count']: players.length }}>
               <div>会话</div>
@@ -179,10 +180,11 @@ function CrossSessionOverview({
                   </div>
                   {players.map((p) => {
                     const gi = allPlayers.indexOf(p)
+                    const participated = (session.players || []).includes(p)
                     const value = gi === -1 ? 0 : metricValues[gi] ?? 0
                     return (
                       <div key={p} className="text-center">
-                        {value === 0 ? '—' : value}
+                        {participated ? value : '—'}
                       </div>
                     )
                   })}
@@ -201,7 +203,7 @@ function CrossSessionOverview({
                     const value = aggregateValues[idx] ?? 0
                     return (
                       <div key={p} className="text-center">
-                        {value === 0 ? '—' : value}
+                        {value}
                       </div>
                     )
                   })}
@@ -210,6 +212,8 @@ function CrossSessionOverview({
             })()}
           </div>
         </div>
+          <p className="mt-1 text-xs text-muted">“—” 表示该玩家未参与此会话；显示 0 表示参与但该指标为 0。</p>
+        </>
       )}
 
       {showCrossChart && players.length > 0 && (
