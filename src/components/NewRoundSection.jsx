@@ -1,4 +1,5 @@
 import { clampInt, ensureLength } from '../lib/helpers'
+import ChoiceButtons from './ChoiceButtons'
 
 function NewRoundSection({
   sectionId = 'new-round',
@@ -197,21 +198,14 @@ function NewRoundSection({
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             <div className="rounded-lg border border-line bg-panel p-3">
               <div className="text-sm text-muted">地主</div>
-              <select
-                className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                value={landlordDraft ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                  setLandlordDraft(Number.isFinite(v) ? v : null)
-                }}
-              >
-                <option value="">选择地主</option>
-                {players.map((name, idx) => (
-                  <option key={name} value={idx}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              <ChoiceButtons
+                className="mt-2"
+                options={players.map((name, idx) => ({ value: idx, label: name }))}
+                value={landlordDraft}
+                onChange={setLandlordDraft}
+                allowClear
+                ariaLabel="选择地主"
+              />
               <div className="mt-3">
                 <div className="text-sm text-muted">胜方</div>
                 <div className="mt-1 space-y-1 text-sm text-text">
@@ -332,38 +326,24 @@ function NewRoundSection({
             </div>
             <div className="rounded-lg border border-line bg-panel p-3">
               <div className="text-sm text-muted">选择胡的玩家</div>
-              <select
-                className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                value={winnerDraft ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                  setWinnerDraft(Number.isFinite(v) ? v : null)
-                }}
-              >
-                <option value="">无</option>
-                {players.map((name, idx) => (
-                  <option key={name} value={idx}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              <ChoiceButtons
+                className="mt-2"
+                options={players.map((name, idx) => ({ value: idx, label: name }))}
+                value={winnerDraft}
+                onChange={setWinnerDraft}
+                allowClear
+                ariaLabel="选择胡的玩家"
+              />
               {!mahjongSpecial && (
                 <div className="mt-3">
                   <div className="text-sm text-muted">庄家</div>
-                  <select
-                    className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
+                  <ChoiceButtons
+                    className="mt-2"
+                    options={players.map((name, idx) => ({ value: idx, label: name }))}
                     value={dealerDraft}
-                    onChange={(e) => {
-                      const v = Number.parseInt(e.target.value, 10)
-                      setDealerDraft(Number.isFinite(v) ? Math.max(0, Math.min(players.length - 1, v)) : 0)
-                    }}
-                  >
-                    {players.map((name, idx) => (
-                      <option key={name} value={idx}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setDealerDraft(Number.isInteger(v) ? v : 0)}
+                    ariaLabel="庄家"
+                  />
                   <p className="mt-1 text-xs text-muted">默认是上一局赢家，可手动修改</p>
                 </div>
               )}
@@ -383,79 +363,54 @@ function NewRoundSection({
               {!mahjongSpecial && (
                 <div className="mt-3 space-y-2">
                   <div className="text-sm text-muted">抢杠</div>
-                  <div className="space-y-1 text-sm text-text">
-                    <select
-                      className="w-full rounded-md border border-line bg-panel px-2 py-1 focus:border-accent focus:outline-none"
-                      value={qiangGangRobberDraft ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                        const next = Number.isFinite(v) ? v : null
-                        setQiangGangRobberDraft(next)
-                        setWinnerDraft(Number.isFinite(next) ? next : winnerDraft)
-                        if (next === null) setQiangGangTargetDraft(null)
-                        if (Number.isFinite(next) && next === qiangGangTargetDraft) setQiangGangTargetDraft(null)
-                      }}
-                    >
-                      <option value="">无</option>
-                      {players.map((name, idx) => (
-                        <option key={name} value={idx}>
-                          {name}（抢杠者/胡牌）
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="w-full rounded-md border border-line bg-panel px-2 py-1 focus:border-accent focus:outline-none"
-                      value={qiangGangTargetDraft ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                        setQiangGangTargetDraft(Number.isFinite(v) ? v : null)
-                      }}
-                      disabled={qiangGangRobberDraft === null}
-                    >
-                      <option value="">被抢杠者</option>
-                      {players.map((name, idx) => (
-                        <option key={name} value={idx} disabled={idx === qiangGangRobberDraft}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <ChoiceButtons
+                    options={players.map((name, idx) => ({ value: idx, label: name }))}
+                    value={qiangGangRobberDraft}
+                    onChange={(next) => {
+                      setQiangGangRobberDraft(next)
+                      setWinnerDraft(Number.isInteger(next) ? next : winnerDraft)
+                      if (next === null) setQiangGangTargetDraft(null)
+                      if (Number.isInteger(next) && next === qiangGangTargetDraft) setQiangGangTargetDraft(null)
+                    }}
+                    allowClear
+                    ariaLabel="抢杠者（胡牌）"
+                  />
+                  <div className="text-xs text-muted">被抢杠者</div>
+                  <ChoiceButtons
+                    options={players.map((name, idx) => ({ value: idx, label: name }))}
+                    value={qiangGangTargetDraft}
+                    onChange={setQiangGangTargetDraft}
+                    allowClear
+                    disabled={qiangGangRobberDraft === null}
+                    disabledOptions={Number.isInteger(qiangGangRobberDraft) ? [qiangGangRobberDraft] : []}
+                    ariaLabel="被抢杠者"
+                  />
                 </div>
               )}
               {!mahjongSpecial && (
                 <div className="mt-3 space-y-2">
                   <div className="text-sm text-muted">跟庄</div>
-                  <select
-                    className="w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none disabled:opacity-50"
+                  <ChoiceButtons
+                    options={[
+                      { value: 'none', label: '无' },
+                      { value: 'all', label: '庄家给三家各 1 分' },
+                      { value: 'single', label: '庄家给某人 3 分' },
+                    ]}
                     value={followTypeDraft}
-                    disabled={players.length !== 4}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setFollowTypeDraft(v === 'all' || v === 'single' ? v : 'none')
-                    }}
-                  >
-                    <option value="none">无</option>
-                    <option value="all">庄家给其它三人各出 1 分</option>
-                    <option value="single">庄家给某个人出 3 分</option>
-                  </select>
+                    onChange={setFollowTypeDraft}
+                    ariaLabel="跟庄"
+                  />
                   {followTypeDraft === 'single' && players.length === 4 && (
                     <div className="space-y-1">
                       <div className="text-xs text-muted">选择被“出三分”的玩家</div>
-                      <select
-                        className="w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none"
-                        value={followTargetDraft ?? ''}
-                        onChange={(e) => {
-                          const v = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
-                          setFollowTargetDraft(Number.isFinite(v) ? v : null)
-                        }}
-                      >
-                        <option value="">选择玩家</option>
-                        {players.map((name, idx) => (
-                          <option key={name} value={idx} disabled={idx === dealerDraft}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
+                      <ChoiceButtons
+                        options={players.map((name, idx) => ({ value: idx, label: name }))}
+                        value={followTargetDraft}
+                        onChange={setFollowTargetDraft}
+                        allowClear
+                        disabledOptions={[dealerDraft]}
+                        ariaLabel="被出三分的玩家"
+                      />
                     </div>
                   )}
                   {players.length !== 4 && <p className="text-xs text-muted">仅 4 人局可跟庄</p>}
@@ -463,21 +418,14 @@ function NewRoundSection({
               )}
               <div className="mt-3">
                 <div className="text-sm text-muted">买码（0-4）</div>
-                <select
-                  className="mt-2 w-full rounded-md border border-line bg-panel px-2 py-1 text-text focus:border-accent focus:outline-none disabled:opacity-50"
+                <ChoiceButtons
+                  className="mt-2"
+                  options={[0, 1, 2, 3, 4].map((v) => ({ value: v, label: String(v) }))}
                   value={buyMaDraft}
-                  disabled={mahjongSpecial || players.length !== 4}
-                  onChange={(e) => {
-                    const v = Number.parseInt(e.target.value, 10)
-                    setBuyMaDraft(Number.isFinite(v) ? Math.max(0, Math.min(4, v)) : 0)
-                  }}
-                >
-                  {[0, 1, 2, 3, 4].map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setBuyMaDraft(Number.isInteger(v) ? Math.max(0, Math.min(4, v)) : 0)}
+                  disabled={mahjongSpecial}
+                  ariaLabel="买码"
+                />
                 {players.length !== 4 ? (
                   <p className="mt-1 text-xs text-muted">仅 4 人局支持买码</p>
                 ) : (
@@ -548,11 +496,13 @@ function NewRoundSection({
                         </div>
                         <label className="mt-1 flex flex-col gap-1">
                           <span>类型</span>
-                          <select
-                            className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
+                          <ChoiceButtons
+                            options={[
+                              { value: 'an', label: '暗杠' },
+                              { value: 'dian', label: '点杠' },
+                            ]}
                             value={entry?.type ?? 'an'}
-                            onChange={(e) => {
-                              const type = e.target.value
+                            onChange={(type) => {
                               setGangDraft((prev) => {
                                 const next = ensureLength(prev, players.length, [])
                                 const list = Array.isArray(next[idx]) ? [...next[idx]] : []
@@ -561,37 +511,28 @@ function NewRoundSection({
                                 return [...next]
                               })
                             }}
-                          >
-                            <option value="an">暗杠</option>
-                            <option value="dian">点杠</option>
-                          </select>
+                            ariaLabel="杠类型"
+                          />
                         </label>
                         {entry?.type === 'dian' && (
                           <label className="flex flex-col gap-1">
                             <span>点谁</span>
-                            <select
-                              className="w-full rounded-md border border-line bg-panel px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-                              value={entry?.target ?? ''}
-                              onChange={(e) => {
-                                const target = e.target.value === '' ? null : Number.parseInt(e.target.value, 10)
+                            <ChoiceButtons
+                              options={players.map((p, pi) => ({ value: pi, label: p }))}
+                              value={entry?.target ?? null}
+                              onChange={(target) => {
                                 setGangDraft((prev) => {
                                   const next = ensureLength(prev, players.length, [])
                                   const list = Array.isArray(next[idx]) ? [...next[idx]] : []
-                                  list[gi] = { ...list[gi], target: Number.isFinite(target) ? target : null }
+                                  list[gi] = { ...list[gi], target }
                                   next[idx] = list
                                   return [...next]
                                 })
                               }}
-                            >
-                              <option value="">选择被点玩家</option>
-                              {players.map((p, pi) =>
-                                pi === idx ? null : (
-                                  <option key={p} value={pi}>
-                                    {p}
-                                  </option>
-                                ),
-                              )}
-                            </select>
+                              allowClear
+                              disabledOptions={[idx]}
+                              ariaLabel={`玩家 ${name} 点谁`}
+                            />
                           </label>
                         )}
                       </div>
