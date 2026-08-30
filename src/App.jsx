@@ -14,7 +14,6 @@ import { computeDoudizhuScores } from './lib/doudizhu'
 import { applyBuyMaAdjustment, applyFollowDealerAdjustment, applyQingShuiHuAdjustment, applyQiangGangAdjustment } from './lib/mahjongAdjustments'
 import { csvEscape } from './lib/csv'
 import { createSession, loadInitialState, parseSessionsFromCsv } from './lib/sessions'
-import PageToc from './components/PageToc'
 import PlayersSection from './components/PlayersSection'
 import RoundsTable from './components/RoundsTable'
 import NewRoundSection from './components/NewRoundSection'
@@ -38,7 +37,6 @@ function App() {
   const [sessionNameDraft, setSessionNameDraft] = useState(state.sessions[0]?.name ?? '会话 1')
   const [targetDraft, setTargetDraft] = useState(state.sessions[0]?.targetRounds ?? '')
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(true)
-  const [isTocOpen, setIsTocOpen] = useState(true)
 
   // New round state
   const [scoreRange, setScoreRange] = useState({ min: -10, max: -1 })
@@ -102,8 +100,6 @@ function App() {
   const fileInputRef = useRef(null)
   const chartRef = useRef(null)
   const crossChartRef = useRef(null)
-  const headerRef = useRef(null)
-  const [headerHeight, setHeaderHeight] = useState(0)
 
   const currentSession = state.sessions.find((s) => s.id === state.currentSessionId) ?? state.sessions[0]
   const players = currentSession?.players ?? defaultPlayers
@@ -163,30 +159,6 @@ function App() {
     setMultiplierDraft(1)
     cancelEdit()
   }, [currentSession?.id, players.length, state.mahjongRules, scoringMode])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const shouldOpen = window.innerWidth >= 1024
-    setIsTocOpen(shouldOpen)
-  }, [])
-
-  const measureHeader = () => {
-    if (!headerRef.current) return
-    const rect = headerRef.current.getBoundingClientRect()
-    setHeaderHeight(rect.height)
-  }
-
-  useEffect(() => {
-    measureHeader()
-    const onResize = () => measureHeader()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  useEffect(() => {
-    const id = requestAnimationFrame(measureHeader)
-    return () => cancelAnimationFrame(id)
-  }, [isHeaderMenuOpen])
 
   const updateCurrentSessionState = (updater) => {
     setState((prev) => {
@@ -265,9 +237,6 @@ function App() {
 
   const handleModeChange = (value) => {
     const fixed = FIXED_PLAYERS[value]
-    if (fixed && players.length !== fixed) {
-      alert(value === 'mahjong' ? '麻将模式固定 4 人，已自动调整玩家数量' : '斗地主模式固定 3 人，已自动调整玩家数量')
-    }
     updateCurrentSessionState((session) => {
       const next = { ...session, scoringMode: value }
       return fixed && session.players.length !== fixed ? resizeSessionPlayers(next, fixed) : next
@@ -1088,17 +1057,6 @@ function App() {
     })
   }, [rounds])
 
-  const tocSections = [
-    { id: 'players', label: '玩家' },
-    { id: 'rounds', label: '对局记录' },
-    { id: 'new-round', label: '新增一局' },
-    { id: 'totals', label: '总分' },
-    { id: 'score-chart', label: '分数变化折线图' },
-    { id: 'cross-overview', label: '跨会话总览' },
-  ]
-
-  const tocTop = Math.max(headerHeight + 8, 72)
-  const tocHeight = `calc(100vh - ${tocTop + 16}px)`
   const mainClasses = `mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-6 text-text`
 
   return (
@@ -1110,7 +1068,7 @@ function App() {
         跳转到主要内容
       </a>
 
-      <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-10 border-b border-line bg-panel/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 text-text">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
@@ -1198,14 +1156,6 @@ function App() {
                   <option value="mahjong">麻将模式</option>
                   <option value="doudizhu">斗地主模式</option>
                 </select>
-                <span className="ml-2 text-muted">目录</span>
-                <button
-                  className="rounded-md border border-line bg-panel px-2 py-1 text-text hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
-                  onClick={() => setIsTocOpen((v) => !v)}
-                  aria-pressed={isTocOpen}
-                >
-                  {isTocOpen ? '隐藏' : '显示'}
-                </button>
               </div>
             </div>
 
@@ -1265,18 +1215,7 @@ function App() {
       </header>
 
       <main id="main-content" className={mainClasses}>
-        <div className={`flex flex-col gap-6 ${isTocOpen ? 'lg:gap-8' : ''}`}>
-          {isTocOpen ? (
-            <aside
-              id="page-toc-panel"
-              className="fixed z-30 w-[260px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl"
-              style={{ left: 'max(16px, calc((100vw - 1100px) / 2))', top: tocTop, maxHeight: tocHeight }}
-            >
-              <PageToc sections={tocSections} isOpen={isTocOpen} onToggle={() => setIsTocOpen((v) => !v)} className="w-full" />
-            </aside>
-          ) : null}
-
-          <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
             <PlayersSection
               players={players}
               onAddPlayer={addPlayer}
@@ -1437,7 +1376,6 @@ function App() {
               openSvgInNewTab={openSvgInNewTab}
               crossChartRef={crossChartRef}
             />
-          </div>
         </div>
       </main>
 

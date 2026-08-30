@@ -15,7 +15,6 @@
 - 跨会话总览：表格支持排序、导出当前/全部会话、筛选特定会话；可切换指标查看每位玩家的总分、赢局数、胡数、杠数；折线图与表格只展示当前选中会话中出现过的玩家。
 - CSV 导入导出：导出含时间戳、玩家列、每局分值、逐局累计、总分行，UTF-8 BOM 兼容 Excel，文件名 `scores-YYYYMMDD-HHMM.csv`；可导入此前导出的 CSV 覆盖当前数据。
 - 目标局数：可预设总局数，达标后自动导出一次并询问是否继续，可重设或清空目标。
-- 目录：左侧可折叠浮层面板，展开/收起都不改变正文排版（不推挤内容），可随页面滚动保持可见。
 - 持久化与无障碍：localStorage 自动保存；提供 skip link、aria 标签、键盘可操作；浅色柔和主题（surface #f7f6f1 / panel #ffffff / accent #7fb37a / text #2f3128 / muted #6f7664 / danger #e25b5b）。
 
 ## 使用说明
@@ -57,9 +56,8 @@ npm run test:run
 - 状态：组件内 useState + useMemo；localStorage 持久化
 
 ## 代码结构
-- [src/App.jsx](src/App.jsx)：主壳组件，负责会话切换、状态管理、导入导出、汇总与导航。
+- [src/App.jsx](src/App.jsx)：主壳组件，负责会话切换、状态管理、导入导出、汇总。
 - 组件：
-  - [src/components/PageToc.jsx](src/components/PageToc.jsx)：页面内目录（跳转到玩家/对局/新增/总分/图表/跨会话）。
   - [src/components/PlayersSection.jsx](src/components/PlayersSection.jsx)：玩家增删改区块。
   - [src/components/RoundsTable.jsx](src/components/RoundsTable.jsx)：对局列表与编辑入口（支持麻将规则、买码、跟庄）。
   - [src/components/NewRoundSection.jsx](src/components/NewRoundSection.jsx)：新增一局（积分/麻将/特殊局，规则调整，自动平衡）。
@@ -122,7 +120,9 @@ npm run test:run
   - 麻将模式固定 4 人、斗地主模式固定 3 人：切换模式时自动增删玩家并同步对局数据，固定模式下禁用玩家增删。
   - 新会话默认继承当前会话的玩家名单。
   - 跨会话总览（表格+折线图）只显示当前选中会话中出现过的玩家。
-  - 目录改为悬浮浮层：展开/收起不再推挤正文排版。
+  - 彻底移除页面目录模块。
+  - 切换模式（积分/麻将/斗地主）不再弹窗提示。
+  - 移除总分旁的“提示”模块。
 - 未完成
   - 无
 
